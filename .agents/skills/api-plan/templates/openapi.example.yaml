@@ -1,0 +1,1404 @@
+openapi: 3.1.2
+info:
+  title: PVP 1A2B HTTP API
+  version: 0.2.0
+  description: >-
+    四項命令與 snapshot 讀取的整併設計契約；尚未部署。命令以 commandId 去重，所有回覆使用同一 RoomSnapshot 與 requestId 命名。需求見
+    ../../../../specs/online-pvp-1a2b/spec.md；交易與投影見 ../../data-plan/templates/schema.example.dbml；非 HTTP 失效通知見本檔 x-realtime。
+servers:
+  - url: https://{projectRef}.supabase.co/functions/v1
+    description: Supabase Edge Functions 正式基底 URL 的格式；projectRef 與正式 project 尚未建立或驗證。
+    variables:
+      projectRef:
+        default: your-project-ref
+        description: 實作時配置的 Supabase project ref，非可直接呼叫的預設值。
+tags:
+  - name: room-match-commands
+    description: 以匿名 JWT caller 執行的房間、準備、開始與猜測 mutation。
+  - name: room-snapshots
+    description: 以已驗證 caller membership 讀取遮蔽且不可快取的權威房間狀態。
+x-session:
+  initialization: >-
+    使用 Supabase Auth SDK signInAnonymously；已有 session 先恢復。匿名玩家取得 authenticated user JWT，本契約不新增登入
+    HTTP 路由。
+  recovery: >-
+    同一瀏覽器保存有效 session 與 server-issued roomId 才能恢復舊房間。清除資料、登出或新裝置的新 UID 不能繼承 membership／receipt；不提供
+    current-room discovery 或一 UID 單一房間保證。
+  trust: >-
+    每次先驗證 Bearer JWT，再以其 UID 檢查 active member／host／state。拒絕 body/query/header 的 client actor
+    ID，service-role 不代替 caller 授權。JWT 失效時不開放任何受保護讀寫。
+x-command-recovery:
+  identity: >-
+    commandId 映射 command_receipts.request_id，作用域為同一 caller。operation + canonical payload 以
+    server-side keyed HMAC 建 fingerprint，尤其不能存 raw answer 或可枚舉的無 key hash。
+  replay: >-
+    同 ID 同內容回放原 outcome 與原遮蔽 snapshot；異內容 409 REQUEST_PAYLOAD_MISMATCH。snapshot
+    可能落後於畫面，仍須遵守版本比較。requestId 每次重新產生；不得以它去重。
+  unknown: >-
+    503 OUTCOME_UNKNOWN 或 transport timeout 均可能已 commit。保留原 commandId、operation、body，恢復同一 UID
+    後重送查明，不先建立新 ID；GET 新 snapshot 不能單獨證明該命令是否執行。U2 未定，無長期 replay 窗口承諾。
+x-environment:
+  public: >-
+    瀏覽器僅有 project URL／publishable key；JWT 執行期取得。service role、HMAC key 留在 server，所有
+    token／答案／fingerprint 禁止記錄。
+  access: >-
+    Anonymous Auth、JWT 驗證、受控 RPC grants/RLS 與 private channel policy 必須配置並驗證；不開放 browser table
+    DML／RPC。
+  cors: >-
+    核定 origin allowlist；OPTIONS 預檢允許 GET/POST、Authorization、Content-Type，暴露 X-Request-Id；GET 429/503
+    另暴露 Retry-After。使用 Bearer 而非 cookie；正式 origin、限流與重試預算見 ../../system-analysis/templates/plan.example.md U3。
+  deferred: >-
+    U2/U3/U4 與公開發布／restore／rotation 的未決事項集中於 ../../system-analysis/templates/plan.example.md；尚無實際部署驗證。fingerprint 變更及密鑰輪替須維持舊命令比對，不得把舊 ID
+    當成新寫入。
+x-verification-expectations:
+  - 後續驗證 JWT/actor/member/host 邊界、所有回覆無答案與對手猜測、GET opaque 404、no-store 與 CORS 可讀診斷標頭。
+  - >-
+    後續驗證同 code 併發配對、兩人上限、單一 winner、相同 ID 平行重送／異 payload、commit 後丟失回覆與舊 receipt snapshot 不倒退；資料約束見
+    ../../data-plan/templates/schema.example.dbml。
+  - 本次僅檢查文件語法、引用與範例結構；不代表 Functions、SQL、RLS、Realtime 或公開環境測試通過。U1 衝突算例未作驗收依據。
+paths:
+  /join-or-create:
+    post:
+      tags:
+        - room-match-commands
+      operationId: createOrJoinRoom
+      summary: 建立或加入等待中的房間
+      description: >-
+        已驗證 caller 送出 4 位配對碼。Function 從 Bearer JWT 取得唯一 actor，不接受 body、query 或 header 中的 actorId； 任何
+        client actor ID 皆為 400 ACTOR_ID_NOT_ALLOWED，且不得進入 receipt 或 RPC。對新 commandId，RPC 以 active
+        pairing-code unique 與 room lock 原子地建立 waiting room／host，或加入唯一可加入的 waiting room；caller 已是該
+        room member 時回傳其權威 snapshot， 不建立第二個 member。滿員、playing、ended 或 U2 所定不可加入狀態為 409
+        ROOM_NOT_JOINABLE，不能據此建立部分 room。 commandId 對應 ../../data-plan/templates/schema.example.dbml 的 request_id；fingerprint 是
+        operation 與 canonical pairingCode，不含 commandId 或 Authorization。相同 actor、 commandId、operation
+        和 payload 回放原結果；payload 不同為 409 REQUEST_PAYLOAD_MISMATCH。成功 stateVersion 僅在共享投影真正改變時遞增。 每個
+        200 或同 commandId receipt replay 都會提供 server-issued roomId，供 client 作為下一次受保護 GET
+        /get-room-snapshot?roomId={UUID} 的 locator；roomId 不代表 membership 授權，也不表示 caller 只有一個 active
+        room。 收到 503 或 transport timeout 不能假定未建立／未加入，必須在仍為同一 anonymous UID 時沿用同 body 重送同
+        commandId；不得改用新 ID。 U2 未決前，本 operation 不承諾 ended／離開後同 code 何時可新建或 receipt 可回放多久。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JoinOrCreateInput'
+            examples:
+              create:
+                summary: 尚無可加入房間時建立等待中房間。
+                value:
+                  commandId: 0e4f1aa1-3ed0-4a82-a5b1-4cc01707e01a
+                  pairingCode: '1234'
+      responses:
+        '200':
+          description: 已建立、已加入或確認既有 membership；同 commandId 的同內容回放仍為此回覆。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandAccepted'
+              examples:
+                waitingHost:
+                  summary: 建立者成為等待中房間的房主。
+                  value:
+                    commandId: 0e4f1aa1-3ed0-4a82-a5b1-4cc01707e01a
+                    requestId: trc-demo-0001
+                    snapshot:
+                      roomId: 77a1e093-5d88-4c89-a1fc-2ba1c5b32201
+                      pairingCode: '1234'
+                      state: waiting
+                      stateVersion: '1'
+                      memberCount: 1
+                      isCallerHost: true
+                      readiness:
+                        callerReady: false
+                        opponentReady: false
+                      callerResult: null
+                      callerGuesses: []
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+            Access-Control-Expose-Headers:
+              $ref: '#/components/headers/ExposeRequestId'
+        '400':
+          $ref: '#/components/responses/InvalidCommandInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '409':
+          $ref: '#/components/responses/JoinConflict'
+        '503':
+          $ref: '#/components/responses/UnknownCommandOutcome'
+  /submit-answer:
+    post:
+      tags:
+        - room-match-commands
+      operationId: submitAnswer
+      summary: 提交自己的秘密答案
+      description: >-
+        已驗證 caller 只能為自己提交 answer；roomId 的存在不授權任何人。RPC 先驗證 caller 為該 room active member、room 為
+        waiting、且已有兩位 active members，再保存／處理答案。answer 的 4 位格式在 Function 與資料庫雙重驗證，response、receipt
+        snapshot、Broadcast 與 logs 都不得回傳或記錄 raw answer。 成功只以 readiness 顯示自己與對手是否已有有效答案。相同 commandId
+        同內容回放原結果；同 commandId 異 payload 為 REQUEST_PAYLOAD_MISMATCH。 waiting 中以不同 commandId 提交另一個有效
+        answer 的更新能力，是 ../../data-plan/templates/schema.example.dbml 的資料設計提案，不是已確認產品需求；本 operation 不把 revision 視為 client 保證，UI
+        不得承諾可編輯。playing／ended 及其他不符狀態為 WRONG_ROOM_STATE。503 或無 HTTP 回覆時，以同 commandId、同 answer 查明，
+        且不得先以新 commandId 再送另一個 answer。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitAnswerInput'
+            examples:
+              ready:
+                summary: 成員在兩人 waiting room 提交符合規則的答案。
+                value:
+                  commandId: 3ef98a91-628e-49c3-8805-892b3f3f4c33
+                  roomId: 77a1e093-5d88-4c89-a1fc-2ba1c5b32201
+                  answer: '1234'
+      responses:
+        '200':
+          description: 答案已由 server 接受；回覆不含答案，只含 caller-safe snapshot。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandAccepted'
+              examples:
+                callerReady:
+                  summary: 本人已準備，對手尚未準備。
+                  value:
+                    commandId: 3ef98a91-628e-49c3-8805-892b3f3f4c33
+                    requestId: trc-demo-0002
+                    snapshot:
+                      roomId: 77a1e093-5d88-4c89-a1fc-2ba1c5b32201
+                      pairingCode: '1234'
+                      state: waiting
+                      stateVersion: '3'
+                      memberCount: 2
+                      isCallerHost: true
+                      readiness:
+                        callerReady: true
+                        opponentReady: false
+                      callerResult: null
+                      callerGuesses: []
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+            Access-Control-Expose-Headers:
+              $ref: '#/components/headers/ExposeRequestId'
+        '400':
+          $ref: '#/components/responses/InvalidCommandInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/NotMember'
+        '409':
+          $ref: '#/components/responses/AnswerConflict'
+        '503':
+          $ref: '#/components/responses/UnknownCommandOutcome'
+  /start-match:
+    post:
+      tags:
+        - room-match-commands
+      operationId: startMatch
+      summary: 由房主開始已準備好的對戰
+      description: >-
+        已驗證 caller 必須是 room 的 active member 與 rooms.host_user_id。RPC 在同一 locked transaction 確認
+        waiting、兩位 active members 與兩份有效 secret answer，才把 room 轉為 playing、設定開始資訊並鎖定答案。不能由 client
+        supplied role、actorId、ready state 或 stateVersion 越過檢查。 200 表示完整 transition 已 commit 並帶有遞增
+        stateVersion 的 snapshot；MEMBERS_INCOMPLETE、ANSWERS_INCOMPLETE 與 WRONG_ROOM_STATE 都是沒有 state
+        change 的 409。相同 commandId／payload 回放原 success 或穩定拒絕；payload 不同拒絕。503 或 transport timeout
+        的恢復一律使用原 commandId 與同 roomId，不能把未知結果視為未開始後新增 start command。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartMatchInput'
+            examples:
+              start:
+                summary: 房主在兩位玩家均準備後開始。
+                value:
+                  commandId: f8ad4a5b-d5c4-4f21-bc2e-2a25f6fb13c4
+                  roomId: 77a1e093-5d88-4c89-a1fc-2ba1c5b32201
+      responses:
+        '200':
+          description: 對戰已開始且答案已鎖定；同 commandId 同內容重送回放原 snapshot。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandAccepted'
+              examples:
+                playing:
+                  summary: 房主收到 playing snapshot。
+                  value:
+                    commandId: f8ad4a5b-d5c4-4f21-bc2e-2a25f6fb13c4
+                    requestId: trc-demo-0003
+                    snapshot:
+                      roomId: 77a1e093-5d88-4c89-a1fc-2ba1c5b32201
+                      pairingCode: '1234'
+                      state: playing
+                      stateVersion: '5'
+                      memberCount: 2
+                      isCallerHost: true
+                      readiness:
+                        callerReady: true
+                        opponentReady: true
+                      callerResult: null
+                      callerGuesses: []
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+            Access-Control-Expose-Headers:
+              $ref: '#/components/headers/ExposeRequestId'
+        '400':
+          $ref: '#/components/responses/InvalidCommandInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/StartAuthorizationRejected'
+        '409':
+          $ref: '#/components/responses/StartConflict'
+        '503':
+          $ref: '#/components/responses/UnknownCommandOutcome'
+  /submit-guess:
+    post:
+      tags:
+        - room-match-commands
+      operationId: submitGuess
+      summary: 提交對對手答案的猜測
+      description: >-
+        已驗證 active member 只在 playing room 提交自己的 guess。RPC 在 rooms row lock 下從資料庫內的對手 secret 計算
+        A／B；client 不得傳 answer、 opponentId、A、B、winner 或 stateVersion。成功會新增 caller 的 immutable
+        guess、遞增 stateVersion，並在 exactCount=4 的同一 transaction 設定唯一 winner 與 ended；同時到達的後一個 4A0B 取得
+        lock 後讀到 ended，為 409 WRONG_ROOM_STATE，不新增 guess。不同 commandId 的相同 guess 是兩次合法意圖，依
+        ../../../../specs/online-pvp-1a2b/spec.md 與 ../../data-plan/templates/schema.example.dbml 各自記錄；只有同 commandId 同 canonical payload 才回放。U1 未解決前不以既有衝突範例硬編 A／B。
+        503 或 transport timeout 結果可能已 commit，必須用同 commandId 與同 guess 重送；成功 snapshot 只列 caller 自己的
+        guesses，不列對手紀錄或任何 raw secret。
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitGuessInput'
+            examples:
+              guess:
+                summary: playing 中的成員提交一個有效猜測。
+                value:
+                  commandId: 40d695f4-8543-424c-af8d-bfa543f6e040
+                  roomId: 77a1e093-5d88-4c89-a1fc-2ba1c5b32201
+                  guess: '1679'
+      responses:
+        '200':
+          description: 猜測、A／B 與可能的 ended transition 已完整 commit；相同 commandId 同內容回放原結果。
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommandAccepted'
+              examples:
+                scoredGuess:
+                  summary: caller 的猜測已保存並取得 server 計算的結果。
+                  value:
+                    commandId: 40d695f4-8543-424c-af8d-bfa543f6e040
+                    requestId: trc-demo-0004
+                    snapshot:
+                      roomId: 77a1e093-5d88-4c89-a1fc-2ba1c5b32201
+                      pairingCode: '1234'
+                      state: playing
+                      stateVersion: '6'
+                      memberCount: 2
+                      isCallerHost: false
+                      readiness:
+                        callerReady: true
+                        opponentReady: true
+                      callerResult: null
+                      callerGuesses:
+                        - guess: '1679'
+                          exactCount: 2
+                          misplacedCount: 0
+                          recordedStateVersion: '6'
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+            Access-Control-Expose-Headers:
+              $ref: '#/components/headers/ExposeRequestId'
+        '400':
+          $ref: '#/components/responses/InvalidCommandInput'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/NotMember'
+        '409':
+          $ref: '#/components/responses/GuessConflict'
+        '503':
+          $ref: '#/components/responses/UnknownCommandOutcome'
+  /get-room-snapshot:
+    get:
+      tags:
+        - room-snapshots
+      operationId: getRoomSnapshot
+      summary: 讀取 caller-specific 房間 snapshot
+      description: >-
+        使用已驗證的 Authorization Bearer user JWT 與 roomId locator，讀取同一 room 的權威、caller-safe snapshot。
+        server 必須先驗證 JWT，再以其 UID 確認 room_members 的 active／可讀 membership，最後由受控資料投影回覆；roomId 不是存取權，
+        request 不接受 actorId、userId、role、winner 或任何秘密欄位。這是無副作用 read：不寫入 receipt、不遞增 stateVersion、不發
+        Broadcast， 網路逾時可安全以相同 URI 重試。所有 200 與錯誤回應必須 Cache-Control: no-store，不能用 browser cache、先前
+        body 或 Realtime payload 代替本次 server read。stateVersion 僅在同一 roomId 內以任意精度非負整數比較：client
+        只以大於已接受版本的 snapshot 取代共享畫面； 相等版本可視為同一權威狀態的重新確認；較小版本是遲到回應，不能覆寫畫面。收到 Broadcast 的 stateVersion
+        只表示應發起本 GET， 不表示該 payload 可套用；若讀回版本仍低於已接受或該通知的版本，保持 stale 並再次讀取。404 故意不區分 room 不存在、非
+        member、left membership、 retention 後不可讀或其他授權拒絕，以防枚舉。401 先恢復有效 session；以新匿名 UID 恢復後不可假定仍擁有舊
+        room。
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/RoomId'
+      responses:
+        '200':
+          description: >-
+            已從同一權威資料視圖產生 caller-safe snapshot。stateVersion 是此 room 的十進位版本；200 本身不代表 Realtime
+            notification 已送達，亦不允許 cache 後當作下一次權威讀取。
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControlNoStore'
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+            Access-Control-Expose-Headers:
+              $ref: '#/components/headers/ExposeRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomSnapshot'
+              examples:
+                waiting:
+                  summary: 房主剛建立、等待第二位玩家的初始 snapshot。
+                  value:
+                    roomId: 2d0d3bb8-7870-4cc1-b2da-245285c3a4ab
+                    pairingCode: '1234'
+                    state: waiting
+                    isCallerHost: true
+                    memberCount: 1
+                    readiness:
+                      callerReady: false
+                      opponentReady: false
+                    stateVersion: '0'
+                    callerResult: null
+                    callerGuesses: []
+                playing:
+                  summary: 兩位玩家均已準備，caller 已有一筆自己的猜測。
+                  value:
+                    roomId: 2d0d3bb8-7870-4cc1-b2da-245285c3a4ab
+                    pairingCode: '1234'
+                    state: playing
+                    isCallerHost: false
+                    memberCount: 2
+                    readiness:
+                      callerReady: true
+                      opponentReady: true
+                    stateVersion: '5'
+                    callerResult: null
+                    callerGuesses:
+                      - guess: '1679'
+                        exactCount: 2
+                        misplacedCount: 0
+                        recordedStateVersion: '5'
+                ended:
+                  summary: caller 已猜中並取得相對勝負；仍不含任一答案或對手 guesses。
+                  value:
+                    roomId: 2d0d3bb8-7870-4cc1-b2da-245285c3a4ab
+                    pairingCode: '1234'
+                    state: ended
+                    isCallerHost: false
+                    memberCount: 2
+                    readiness:
+                      callerReady: true
+                      opponentReady: true
+                    stateVersion: '8'
+                    callerResult: won
+                    callerGuesses:
+                      - guess: '1679'
+                        exactCount: 2
+                        misplacedCount: 0
+                        recordedStateVersion: '5'
+                      - guess: '5678'
+                        exactCount: 4
+                        misplacedCount: 0
+                        recordedStateVersion: '8'
+        '400':
+          $ref: '#/components/responses/InvalidRoomId'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '404':
+          $ref: '#/components/responses/RoomNotFoundOrNotReadable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/SnapshotUnavailable'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >-
+        Supabase Anonymous Auth 或既有平台 session 的 user JWT。每個 Function 驗證它並只以其中的 UID 建立 actor context；
+        token 缺失、失效、過期或撤銷時不得進 RPC。取得／refresh／撤銷與 key rotation 由匿名 session 界面及 project 設定處理， 新匿名 UID
+        不能重放舊 actor 的 receipt。
+  parameters:
+    RoomId:
+      name: roomId
+      in: query
+      required: true
+      description: >-
+        要重新讀取的內部 room UUID；僅用於定位，server 仍以 JWT UID 的 active／可讀 membership 授權。 client 可保存上一個
+        server-issued roomId 作 reload locator，但其本身與任何 local snapshot 都不授權也不代表真相； 不可用 roomId 探測其他房間。此
+        interface 不提供沒有 locator 時的 current-room discovery。
+      schema:
+        type: string
+        format: uuid
+        pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+      example: 2d0d3bb8-7870-4cc1-b2da-245285c3a4ab
+  schemas:
+    CommandId:
+      type: string
+      format: uuid
+      pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+      description: >-
+        瀏覽器在一次使用者命令開始時產生並保留的 UUID，映射 command_receipts.request_id。 同一 actor 的同 commandId 只能搭配同
+        operation 與同 canonical payload；不是 actor ID、server trace ID 或猜測識別碼。
+      example: 0e4f1aa1-3ed0-4a82-a5b1-4cc01707e01a
+    RoomId:
+      type: string
+      format: uuid
+      pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+      description: >-
+        server 產生的 room 識別。命令成功與 receipt replay 會回傳它，讓 client 以 P-API-01 的 GET
+        /get-room-snapshot?roomId={UUID} 指定讀取目標；它僅是 locator，不能代表 membership 授權或推論 caller 只有一個 active
+        room。
+      example: 77a1e093-5d88-4c89-a1fc-2ba1c5b32201
+    PairingCode:
+      type: string
+      pattern: ^[0-9]{4}$
+      minLength: 4
+      maxLength: 4
+      description: 4 位數房間配對碼；首位可為 0，必須保留為字串。
+      example: '1234'
+    SecretNumber:
+      type: string
+      pattern: ^(?!.*([0-9]).*\1)[1-9][0-9]{3}$
+      minLength: 4
+      maxLength: 4
+      description: 4 位數、首位非 0、四位不重複的秘密答案或猜測；提交 answer 時必須在 transport、日誌與回覆中遮蔽。
+      example: '1234'
+    JoinOrCreateInput:
+      type: object
+      additionalProperties: false
+      required:
+        - commandId
+        - pairingCode
+      description: body 不接受 actorId 或任何未列欄位；Function 也必須拒絕 query／header 中的 client supplied actor ID，不能靜默忽略。
+      properties:
+        commandId:
+          $ref: '#/components/schemas/CommandId'
+        pairingCode:
+          $ref: '#/components/schemas/PairingCode'
+    SubmitAnswerInput:
+      type: object
+      additionalProperties: false
+      required:
+        - commandId
+        - roomId
+        - answer
+      description: >-
+        body 不接受 actorId、opponentId、ready、stateVersion 或其他 client 控制欄位。canonical fingerprint 必須使用
+        keyed server-side 方法處理 answer，不能保存或記錄可離線反推的 raw／unkeyed hash。
+      properties:
+        commandId:
+          $ref: '#/components/schemas/CommandId'
+        roomId:
+          $ref: '#/components/schemas/RoomId'
+        answer:
+          $ref: '#/components/schemas/SecretNumber'
+    StartMatchInput:
+      type: object
+      additionalProperties: false
+      required:
+        - commandId
+        - roomId
+      description: body 不接受 actorId、host、ready、state、stateVersion 或秘密答案；房主與準備條件只能從 transaction 內的權威資料判定。
+      properties:
+        commandId:
+          $ref: '#/components/schemas/CommandId'
+        roomId:
+          $ref: '#/components/schemas/RoomId'
+    SubmitGuessInput:
+      type: object
+      additionalProperties: false
+      required:
+        - commandId
+        - roomId
+        - guess
+      description: >-
+        body 不接受 actorId、opponentId、answer、exactCount、misplacedCount、winner 或 stateVersion；A／B 與
+        ended 僅由 locked RPC 計算。
+      properties:
+        commandId:
+          $ref: '#/components/schemas/CommandId'
+        roomId:
+          $ref: '#/components/schemas/RoomId'
+        guess:
+          $ref: '#/components/schemas/SecretNumber'
+    CommandAccepted:
+      type: object
+      additionalProperties: false
+      required:
+        - commandId
+        - requestId
+        - snapshot
+      description: >-
+        200 表示資料 outcome=applied 已完整 commit，或 join-or-create 確認 caller 已是目標 member。 同 commandId 同
+        fingerprint replay 仍使用這個形狀；requestId 是本次 HTTP invocation 的診斷用識別，不能取代 commandId 做重送。
+      properties:
+        commandId:
+          $ref: '#/components/schemas/CommandId'
+        requestId:
+          $ref: '#/components/schemas/RequestId'
+        snapshot:
+          $ref: '#/components/schemas/RoomSnapshot'
+    CommandRejection:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - message
+        - requestId
+        - commandId
+        - snapshot
+      description: >-
+        可穩定表達的資料業務拒絕。可安全讀取同房時 snapshot 為 caller-safe 投影；沒有可讀 room、輸入不能 canonicalize， 或 request
+        payload mismatch 時為 null。穩定拒絕可由 receipt 回放且不增加 stateVersion、不發 Broadcast。
+      properties:
+        code:
+          type: string
+          description: 各 response component 將此欄位限制為其適用的穩定業務 code。
+        message:
+          $ref: '#/components/schemas/ErrorMessage'
+        requestId:
+          $ref: '#/components/schemas/RequestId'
+        commandId:
+          $ref: '#/components/schemas/CommandId'
+        snapshot:
+          oneOf:
+            - $ref: '#/components/schemas/RoomSnapshot'
+            - type: 'null'
+    InvalidCommandInputError:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - message
+        - requestId
+      description: >-
+        JSON、content、commandId 或欄位格式不合法，或 request 帶有任何 client actor ID／未允許欄位。不得執行 mutation； 只有已驗證、可
+        canonicalize 的資料輸入才可依 ../../data-plan/templates/schema.example.dbml 保存為 invalid_input receipt，actor ID 或無 caller context
+        一律不建立 receipt。
+      properties:
+        code:
+          type: string
+          enum:
+            - INVALID_INPUT
+            - ACTOR_ID_NOT_ALLOWED
+        message:
+          $ref: '#/components/schemas/ErrorMessage'
+        requestId:
+          $ref: '#/components/schemas/RequestId'
+        commandId:
+          oneOf:
+            - $ref: '#/components/schemas/CommandId'
+            - type: 'null'
+    UnknownCommandOutcomeError:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - message
+        - requestId
+        - commandId
+      description: >-
+        Function 無法向 caller 證明命令是否已 commit。client 必須先恢復同一 anonymous session，再用同一 body／commandId 重送；
+        不得產生新 commandId。相同重送可能取得 ../../data-plan/templates/schema.example.dbml receipt 的成功／拒絕，也可能在尚未接受時安全執行一次。
+      properties:
+        code:
+          type: string
+          const: OUTCOME_UNKNOWN
+        message:
+          $ref: '#/components/schemas/ErrorMessage'
+        requestId:
+          $ref: '#/components/schemas/RequestId'
+        commandId:
+          $ref: '#/components/schemas/CommandId'
+    StateVersion:
+      type: string
+      pattern: ^(0|[1-9][0-9]*)$
+      description: >-
+        room 內單調非負版本的精確十進位字串；初建為 "0"。共享狀態成功改變時於同一交易加一，重送回放、拒絕、讀取不增加。只在相同 roomId 用 BigInt／任意精度比較，不轉為
+        JavaScript number。
+      examples:
+        - '0'
+        - '8'
+    RoomSnapshot:
+      oneOf:
+        - $ref: '#/components/schemas/WaitingRoomSnapshot'
+        - $ref: '#/components/schemas/PlayingRoomSnapshot'
+        - $ref: '#/components/schemas/EndedRoomSnapshot'
+      discriminator:
+        propertyName: state
+        mapping:
+          waiting: '#/components/schemas/WaitingRoomSnapshot'
+          playing: '#/components/schemas/PlayingRoomSnapshot'
+          ended: '#/components/schemas/EndedRoomSnapshot'
+      description: >-
+        命令回覆與 GET 共用的 caller-specific 權威投影。任何狀態都不含原始答案、UID、對手猜測或其 A/B；U5/U6 見 ../../system-analysis/templates/plan.example.md。不同 caller 的
+        snapshot 不可共用快取。
+      type: object
+    RoomSnapshotBase:
+      type: object
+      additionalProperties: false
+      required:
+        - roomId
+        - pairingCode
+        - state
+        - isCallerHost
+        - memberCount
+        - readiness
+        - stateVersion
+        - callerResult
+        - callerGuesses
+      properties:
+        roomId:
+          $ref: '#/components/schemas/RoomId'
+        pairingCode:
+          $ref: '#/components/schemas/PairingCode'
+        state:
+          type: string
+          enum:
+            - waiting
+            - playing
+            - ended
+          description: 資料層權威 room state；state-specific schemas 約束 callerResult。
+        isCallerHost:
+          type: boolean
+          description: caller 是否為此 room 的權威 host；僅供 UI 顯示／操作條件，不能取代伺服器命令時的 host 檢查。
+        memberCount:
+          type: integer
+          minimum: 1
+          maximum: 2
+          description: 目前可讀 room 的 active member 數量；不包含 UID、seat、離開歷史或對手身分資料。
+        readiness:
+          $ref: '#/components/schemas/Readiness'
+        stateVersion:
+          $ref: '#/components/schemas/StateVersion'
+        callerResult:
+          type:
+            - string
+            - 'null'
+          enum:
+            - won
+            - lost
+            - null
+          description: caller 相對 winner 的結果。waiting／playing 必為 null；ended 必為 won 或 lost，且不回傳 winner_user_id。
+        callerGuesses:
+          type: array
+          description: >-
+            僅 caller 本人的不可變 guesses 與 server 計算的 A／B；依 recordedStateVersion 由小到大排序。 U6 未定前永遠不含對手
+            guess 或其結果。
+          items:
+            $ref: '#/components/schemas/CallerGuess'
+      description: 四個命令與 GET 共用，所有欄位均由可信 caller 的一致資料視圖投影。
+    WaitingRoomSnapshot:
+      allOf:
+        - $ref: '#/components/schemas/RoomSnapshotBase'
+        - type: object
+          properties:
+            state:
+              const: waiting
+            callerResult:
+              type: 'null'
+    PlayingRoomSnapshot:
+      allOf:
+        - $ref: '#/components/schemas/RoomSnapshotBase'
+        - type: object
+          properties:
+            state:
+              const: playing
+            callerResult:
+              type: 'null'
+    EndedRoomSnapshot:
+      allOf:
+        - $ref: '#/components/schemas/RoomSnapshotBase'
+        - type: object
+          properties:
+            state:
+              const: ended
+            callerResult:
+              type: string
+              enum:
+                - won
+                - lost
+    Readiness:
+      type: object
+      additionalProperties: false
+      required:
+        - callerReady
+        - opponentReady
+      properties:
+        callerReady:
+          type: boolean
+          description: caller 是否已有被資料層接受的有效答案；只反映 readiness，不回傳 caller 的純文字答案。
+        opponentReady:
+          type: boolean
+          description: 對手是否已有被資料層接受的有效答案；只反映 readiness，不回傳對手答案或身分。
+    CallerGuess:
+      type: object
+      additionalProperties: false
+      required:
+        - guess
+        - exactCount
+        - misplacedCount
+        - recordedStateVersion
+      description: >-
+        只屬於 caller 的 immutable 猜測紀錄，依 recordedStateVersion 的十進位數值遞增排序。U6 未確認前不含對手 guesses／A-B。 A+B
+        <= 4；4A 時 B=0，演算法與跨欄位條件由資料層保證。
+      properties:
+        guess:
+          $ref: '#/components/schemas/SecretNumber'
+        exactCount:
+          type: integer
+          minimum: 0
+          maximum: 4
+          description: 由 server 依對手秘密答案計算的 A 值。
+        misplacedCount:
+          type: integer
+          minimum: 0
+          maximum: 4
+          description: 由 server 依對手秘密答案計算的 B 值；與 exactCount 之和不超過 4。
+        recordedStateVersion:
+          type: string
+          pattern: ^[1-9][0-9]*$
+          minLength: 1
+          description: >-
+            寫入此 guess 的同一 commit 所產生的 room stateVersion，不是 client timestamp。因資料層為 bigint， wire
+            一律採精確十進位字串，client 不得轉為 JavaScript number 後再比較。
+    ApiError:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - message
+        - requestId
+      properties:
+        code:
+          type: string
+          enum:
+            - INVALID_ROOM_ID
+            - UNAUTHENTICATED
+            - ROOM_NOT_FOUND_OR_NOT_READABLE
+            - RATE_LIMITED
+            - SNAPSHOT_UNAVAILABLE
+            - INTERNAL_ERROR
+          description: 穩定、非敏感的機器碼；每個 HTTP response 透過 its schema 限定其值。
+        message:
+          $ref: '#/components/schemas/ErrorMessage'
+        requestId:
+          $ref: '#/components/schemas/RequestId'
+    InvalidRoomIdError:
+      allOf:
+        - $ref: '#/components/schemas/ApiError'
+        - type: object
+          properties:
+            code:
+              const: INVALID_ROOM_ID
+    UnauthenticatedError:
+      allOf:
+        - $ref: '#/components/schemas/ApiError'
+        - type: object
+          properties:
+            code:
+              const: UNAUTHENTICATED
+    RoomNotFoundOrNotReadableError:
+      allOf:
+        - $ref: '#/components/schemas/ApiError'
+        - type: object
+          properties:
+            code:
+              const: ROOM_NOT_FOUND_OR_NOT_READABLE
+    RateLimitedError:
+      allOf:
+        - $ref: '#/components/schemas/ApiError'
+        - type: object
+          properties:
+            code:
+              const: RATE_LIMITED
+    SnapshotUnavailableError:
+      allOf:
+        - $ref: '#/components/schemas/ApiError'
+        - type: object
+          properties:
+            code:
+              const: SNAPSHOT_UNAVAILABLE
+    InternalError:
+      allOf:
+        - $ref: '#/components/schemas/ApiError'
+        - type: object
+          properties:
+            code:
+              const: INTERNAL_ERROR
+    RequestId:
+      type: string
+      minLength: 1
+      maxLength: 128
+      description: 每次 HTTP invocation 產生的診斷關聯碼，與 X-Request-Id 相同；回放也產生新的 requestId。不能取代 commandId，且不含敏感值。
+    ErrorMessage:
+      type: string
+      minLength: 1
+      maxLength: 256
+      description: 可顯示的安全訊息，不含 token、答案、他人資料、room existence 的額外線索或內部例外。
+  headers:
+    CacheControlNoStore:
+      description: 所有本界面回應必須禁用 browser／intermediary cache，避免任何先前 snapshot 或 error 取代下一次權威 server read。
+      schema:
+        type: string
+        const: no-store
+      example: no-store
+    RequestId:
+      description: >-
+        server-generated correlation ID；與 error body 的 requestId 相同。必須省略 JWT、secret、guess、UID、roomId
+        及 pairing code。
+      schema:
+        $ref: '#/components/schemas/RequestId'
+      example: rsnap-req-0001
+    ExposeRequestId:
+      description: 讓跨來源瀏覽器讀取 X-Request-Id 以支援安全診斷；實際 origin allowlist 仍待 U3。
+      schema:
+        type: string
+        const: X-Request-Id
+      example: X-Request-Id
+    ExposeRequestIdAndRetryAfter:
+      description: 讓跨來源瀏覽器讀取 X-Request-Id 與 Retry-After；只用於 429／503。
+      schema:
+        type: string
+        const: X-Request-Id, Retry-After
+      example: X-Request-Id, Retry-After
+    RetryAfter:
+      description: >-
+        API 設計提案的正整數秒數提示。只在 429／503 回應中出現；client 可在此後安全重試同一 GET， 但正式限流額度、最多自動重試次數與退避預算仍待 U3，不得由此
+        example 推定。
+      schema:
+        type: integer
+        minimum: 1
+      example: 5
+  responses:
+    InvalidCommandInput:
+      description: >-
+        INVALID_INPUT 或 ACTOR_ID_NOT_ALLOWED。修正 JSON／欄位後以新的使用者意圖建立新 commandId； 若原 commandId 及
+        payload 已由已驗證 caller 取得穩定 invalid_input receipt，重送會回放該拒絕。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/InvalidCommandInputError'
+          examples:
+            invalidGuess:
+              value:
+                code: INVALID_INPUT
+                message: guess 必須是首位非 0 且數字不重複的 4 位數字。
+                requestId: trc-demo-err-01
+                commandId: 40d695f4-8543-424c-af8d-bfa543f6e040
+            forbiddenActor:
+              value:
+                code: ACTOR_ID_NOT_ALLOWED
+                message: 不接受 client supplied actor ID。
+                requestId: trc-demo-err-02
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+        Access-Control-Expose-Headers:
+          $ref: '#/components/headers/ExposeRequestId'
+    Unauthenticated:
+      description: >-
+        UNAUTHENTICATED；缺失、失效、過期或竄改的 Bearer JWT 不建立 caller context，沒有任何受保護 snapshot。 client 先恢復有效
+        session 再重試同一 GET；若只能建立新匿名 UID，不可聲稱可恢復舊 room。
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+        Access-Control-Expose-Headers:
+          $ref: '#/components/headers/ExposeRequestId'
+        WWW-Authenticate:
+          description: 此 API 只接受 Bearer JWT，challenge 不包含 token 或內部驗證資訊。
+          schema:
+            type: string
+            const: Bearer
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/UnauthenticatedError'
+          examples:
+            expiredSession:
+              value:
+                code: UNAUTHENTICATED
+                message: 工作階段無效或已過期，請先恢復匿名身分。
+                requestId: rsnap-req-0003
+    NotMember:
+      description: >-
+        NOT_MEMBER：JWT 有效但 caller 不是目標 room 的 active member，或 roomId 不存在／不可向 caller 揭露。 不透露 room
+        existence，不能透過重送提升權限，snapshot 為 null。
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/CommandRejection'
+              - type: object
+                properties:
+                  code:
+                    const: NOT_MEMBER
+          examples:
+            notMember:
+              value:
+                code: NOT_MEMBER
+                message: 目前身分沒有執行此房間操作的權限。
+                requestId: trc-demo-err-04
+                commandId: 3ef98a91-628e-49c3-8805-892b3f3f4c33
+                snapshot: null
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+        Access-Control-Expose-Headers:
+          $ref: '#/components/headers/ExposeRequestId'
+    StartAuthorizationRejected:
+      description: >-
+        NOT_MEMBER 或 NOT_HOST。NOT_MEMBER 不透露 room existence，snapshot 為 null；NOT_HOST 是可讀 room 的
+        active member， 因此必須帶 caller-safe snapshot。會員不足／答案未備妥使用 409，而非 403。
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/CommandRejection'
+              - type: object
+                properties:
+                  code:
+                    enum:
+                      - NOT_MEMBER
+                      - NOT_HOST
+          examples:
+            notHost:
+              value:
+                code: NOT_HOST
+                message: 只有房主可以開始對戰。
+                requestId: trc-demo-err-05
+                commandId: f8ad4a5b-d5c4-4f21-bc2e-2a25f6fb13c4
+                snapshot:
+                  roomId: 77a1e093-5d88-4c89-a1fc-2ba1c5b32201
+                  pairingCode: '1234'
+                  state: waiting
+                  stateVersion: '3'
+                  memberCount: 2
+                  isCallerHost: false
+                  readiness:
+                    callerReady: true
+                    opponentReady: false
+                  callerResult: null
+                  callerGuesses: []
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+        Access-Control-Expose-Headers:
+          $ref: '#/components/headers/ExposeRequestId'
+    JoinConflict:
+      description: >-
+        ROOM_NOT_JOINABLE 表示目標 code 的 room 滿員、非 waiting 或 U2 所定不可加入；REQUEST_PAYLOAD_MISMATCH 表示同
+        actor／commandId 曾配合不同 operation 或 canonical payload 使用。兩者都不得新增 room 或 member，snapshot 為
+        null。
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/CommandRejection'
+              - type: object
+                properties:
+                  code:
+                    enum:
+                      - ROOM_NOT_JOINABLE
+                      - REQUEST_PAYLOAD_MISMATCH
+          examples:
+            roomNotJoinable:
+              value:
+                code: ROOM_NOT_JOINABLE
+                message: 此配對碼目前無法加入。
+                requestId: trc-demo-err-06
+                commandId: 0e4f1aa1-3ed0-4a82-a5b1-4cc01707e01a
+                snapshot: null
+            mismatch:
+              value:
+                code: REQUEST_PAYLOAD_MISMATCH
+                message: 此 commandId 已用於不同內容，請不要覆寫原命令。
+                requestId: trc-demo-err-07
+                commandId: 0e4f1aa1-3ed0-4a82-a5b1-4cc01707e01a
+                snapshot: null
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+        Access-Control-Expose-Headers:
+          $ref: '#/components/headers/ExposeRequestId'
+    AnswerConflict:
+      description: >-
+        MEMBERS_INCOMPLETE、WRONG_ROOM_STATE 或 REQUEST_PAYLOAD_MISMATCH。已授權 member 的前兩者可帶 caller-safe
+        snapshot；mismatch 為 null。不寫入答案。
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/CommandRejection'
+              - type: object
+                properties:
+                  code:
+                    enum:
+                      - MEMBERS_INCOMPLETE
+                      - WRONG_ROOM_STATE
+                      - REQUEST_PAYLOAD_MISMATCH
+          examples:
+            alreadyPlaying:
+              value:
+                code: WRONG_ROOM_STATE
+                message: 房間已開始或結束，不能再提交答案。
+                requestId: trc-demo-err-08
+                commandId: 3ef98a91-628e-49c3-8805-892b3f3f4c33
+                snapshot:
+                  roomId: 77a1e093-5d88-4c89-a1fc-2ba1c5b32201
+                  pairingCode: '1234'
+                  state: playing
+                  stateVersion: '5'
+                  memberCount: 2
+                  isCallerHost: true
+                  readiness:
+                    callerReady: true
+                    opponentReady: true
+                  callerResult: null
+                  callerGuesses: []
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+        Access-Control-Expose-Headers:
+          $ref: '#/components/headers/ExposeRequestId'
+    StartConflict:
+      description: >-
+        MEMBERS_INCOMPLETE、ANSWERS_INCOMPLETE、WRONG_ROOM_STATE 或 REQUEST_PAYLOAD_MISMATCH。前面三者可讓已授權
+        caller 以 snapshot 重新顯示條件；mismatch snapshot 為 null。全部不開始對戰、不鎖定新答案。
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/CommandRejection'
+              - type: object
+                properties:
+                  code:
+                    enum:
+                      - MEMBERS_INCOMPLETE
+                      - ANSWERS_INCOMPLETE
+                      - WRONG_ROOM_STATE
+                      - REQUEST_PAYLOAD_MISMATCH
+          examples:
+            answersIncomplete:
+              value:
+                code: ANSWERS_INCOMPLETE
+                message: 需要兩位玩家都準備完成才能開始。
+                requestId: trc-demo-err-09
+                commandId: f8ad4a5b-d5c4-4f21-bc2e-2a25f6fb13c4
+                snapshot:
+                  roomId: 77a1e093-5d88-4c89-a1fc-2ba1c5b32201
+                  pairingCode: '1234'
+                  state: waiting
+                  stateVersion: '3'
+                  memberCount: 2
+                  isCallerHost: true
+                  readiness:
+                    callerReady: true
+                    opponentReady: false
+                  callerResult: null
+                  callerGuesses: []
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+        Access-Control-Expose-Headers:
+          $ref: '#/components/headers/ExposeRequestId'
+    GuessConflict:
+      description: >-
+        WRONG_ROOM_STATE 或 REQUEST_PAYLOAD_MISMATCH。playing 以外、已 ended 或並行 winner 先完成時為
+        WRONG_ROOM_STATE， 不新增 guess；已授權 caller 可從 snapshot 接受 ended／較新狀態。
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/CommandRejection'
+              - type: object
+                properties:
+                  code:
+                    enum:
+                      - WRONG_ROOM_STATE
+                      - REQUEST_PAYLOAD_MISMATCH
+          examples:
+            ended:
+              value:
+                code: WRONG_ROOM_STATE
+                message: 對戰已結束，不能再提交猜測。
+                requestId: trc-demo-err-10
+                commandId: 40d695f4-8543-424c-af8d-bfa543f6e040
+                snapshot:
+                  roomId: 77a1e093-5d88-4c89-a1fc-2ba1c5b32201
+                  pairingCode: '1234'
+                  state: ended
+                  stateVersion: '7'
+                  memberCount: 2
+                  isCallerHost: false
+                  readiness:
+                    callerReady: true
+                    opponentReady: true
+                  callerResult: lost
+                  callerGuesses:
+                    - guess: '1679'
+                      exactCount: 2
+                      misplacedCount: 0
+                      recordedStateVersion: '6'
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+        Access-Control-Expose-Headers:
+          $ref: '#/components/headers/ExposeRequestId'
+    UnknownCommandOutcome:
+      description: >-
+        OUTCOME_UNKNOWN：資料依賴、Function 或回覆路徑讓服務無法證明 command 是否已 commit；同樣適用於 client 沒收到任何 HTTP
+        response。 先恢復同一 JWT session，再以相同 body／commandId 重送，不能建立新命令。沒有已定 rate-limit／Retry-After 承諾。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/UnknownCommandOutcomeError'
+          examples:
+            unknown:
+              value:
+                code: OUTCOME_UNKNOWN
+                message: 命令結果尚未確認，請以相同 commandId 重新查明。
+                requestId: trc-demo-err-11
+                commandId: 40d695f4-8543-424c-af8d-bfa543f6e040
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+        Access-Control-Expose-Headers:
+          $ref: '#/components/headers/ExposeRequestId'
+    InvalidRoomId:
+      description: INVALID_ROOM_ID；roomId 缺失、不是 UUID 或無法解析。修正 locator 後再呼叫；不可用隨機 UUID 探測 room。
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+        Access-Control-Expose-Headers:
+          $ref: '#/components/headers/ExposeRequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/InvalidRoomIdError'
+          examples:
+            invalidRoomId:
+              value:
+                code: INVALID_ROOM_ID
+                message: roomId 必須是有效的房間識別碼。
+                requestId: rsnap-req-0002
+    RoomNotFoundOrNotReadable:
+      description: >-
+        ROOM_NOT_FOUND_OR_NOT_READABLE；故意合併「room 不存在、caller 不是 member、membership 已 left、資料已不保留或不可讀」。
+        不回傳哪一種原因、room state、member count 或任何其他 room 欄位。client 停止對此 locator 的自動重試並清除其本地 locator；
+        不能以此結果推論 room 是否存在或新 UID 是否有舊 room 權利。
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+        Access-Control-Expose-Headers:
+          $ref: '#/components/headers/ExposeRequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RoomNotFoundOrNotReadableError'
+          examples:
+            opaqueNotReadable:
+              value:
+                code: ROOM_NOT_FOUND_OR_NOT_READABLE
+                message: 找不到可讀取的房間。
+                requestId: rsnap-req-0004
+    RateLimited:
+      description: >-
+        RATE_LIMITED；U3 尚未決定實際門檻。client 可等 Retry-After 後安全重試同一 GET；保留既有畫面時只能標為可能過期， 不可把快取或 Broadcast
+        當成功讀取。沒有 Retry-After 或自動重試預算時，交由後續同步 UX／營運配置決定。
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+        Access-Control-Expose-Headers:
+          $ref: '#/components/headers/ExposeRequestIdAndRetryAfter'
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RateLimitedError'
+          examples:
+            rateLimited:
+              value:
+                code: RATE_LIMITED
+                message: 讀取過於頻繁，請稍後再試。
+                requestId: rsnap-req-0005
+    InternalError:
+      description: >-
+        INTERNAL_ERROR；未預期但已遮蔽的 Function 內部失敗。client 不得依此認定 room state 未變或使用舊 snapshot 作真相； 可保留
+        requestId 供維運調查，並依同步 UX 以有界退避重新讀取。
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+        Access-Control-Expose-Headers:
+          $ref: '#/components/headers/ExposeRequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/InternalError'
+          examples:
+            internalError:
+              value:
+                code: INTERNAL_ERROR
+                message: 暫時無法讀取房間狀態，請稍後再試。
+                requestId: rsnap-req-0006
+    SnapshotUnavailable:
+      description: >-
+        SNAPSHOT_UNAVAILABLE；資料庫、受控 RPC 或必要依賴暫時不可用，未成功回傳權威 snapshot。 本 GET 沒有副作用，client 可在
+        Retry-After 後以同一 URI 重試；必須等待新的 server response，不能回放 Browser cache 或 Realtime payload。
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/CacheControlNoStore'
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+        Access-Control-Expose-Headers:
+          $ref: '#/components/headers/ExposeRequestIdAndRetryAfter'
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SnapshotUnavailableError'
+          examples:
+            dependencyUnavailable:
+              value:
+                code: SNAPSHOT_UNAVAILABLE
+                message: 房間狀態暫時無法確認，請稍後重新讀取。
+                requestId: rsnap-req-0007
+x-realtime:
+  name: 房間狀態失效通知
+  status: 分析契約；尚未實作或驗證 hosted 行為
+  sources:
+    - ../../../../specs/online-pvp-1a2b/research.md R04
+    - ../../system-analysis/templates/plan.example.md 共同約束與 U2/U3
+    - ../../data-plan/templates/schema.example.dbml rooms、room_members Notes
+  related:
+    snapshot: '#/paths/~1get-room-snapshot/get'
+    experience: ../../ui-ux-plan/templates/ui-ux-plan.example.md
+  contract:
+    topic:
+      format: room:<room_id>
+      private: true
+      description: server-issued UUID；只定位房間，不授權，不以配對碼或 UID 代替。
+    event: room_state_invalidated
+    payload:
+      type: object
+      additionalProperties: false
+      required:
+        - roomId
+        - stateVersion
+        - kind
+      properties:
+        roomId:
+          type: string
+          format: uuid
+          description: 必須等於 topic 的 room_id。
+        stateVersion:
+          type: string
+          pattern: ^(0|[1-9][0-9]*)$
+          description: 已 commit 且遞增的 rooms.state_version；與 HTTP StateVersion 相同，以任意精度比較。
+        kind:
+          const: room_state_invalidated
+      example:
+        roomId: 77a1e093-5d88-4c89-a1fc-2ba1c5b32201
+        stateVersion: '8'
+        kind: room_state_invalidated
+    authorization:
+      receive: 有效 anonymous authenticated JWT，且同房 active membership；非 member／left／無效 JWT 一律拒絕，不洩露房間存在性。
+      browserSend: 一律拒絕，即使為 member；public channel 不可作 fallback。
+      publisher: 只允許受控 server path 使用已授權命令的 committed result；不接受 client 指定 actor、發布內容或授權。
+      credentials: JWT 僅用於授權，server credential 不進 browser；兩者都不是 payload 或 log 欄位。
+    publish:
+      when: 共享狀態成功改變並 commit、state_version 已遞增後才發布。
+      skip:
+        - rollback
+        - business rejection
+        - receipt replay
+        - snapshot read
+        - unchanged state
+      contents: 僅 roomId/stateVersion/kind；不含 snapshot、答案、guess、A/B、winner、UID、配對碼或 receipt。
+      result: accepted 不代表送達／讀取；發布失敗或未知不回滾已提交遊戲資料，可重送同一版本，不能新增 mutation/version。
+      implementation: trigger／服務發布路徑待實作選定；不得於 transaction 尚未 commit 時發布。
+    delivery:
+      guarantees: 無 durable replay、順序、唯一或送達保證；可能遺失、重複、亂序。
+      version: 僅同 roomId 比較 BigInt；不使用 JavaScript number。舊／相等訊號可忽略，新版本合併為讀取要求，不依事件次數更新遊戲。
+      unknownEvent: 未知 label/kind 不直接改畫面；保守標記 stale 並重讀。payload roomId 不符 topic 或格式無效時丟棄，不追隨到別房間。
+    recovery:
+      initial: 成功 private join 後仍須 GET snapshot；訂閱成功不代表畫面新鮮。
+      notification: 較高版本只使 snapshot 失效，經 GET 取得真相；回覆若低於已套用／通知版本則保持 stale 並有界重讀，絕不倒退。
+      reconnect: socket error、JWT refresh、頁面／背景恢復後，以有效 session 重新授權 private join，再無條件 GET；不補放遺失訊號。
+      denial: 停止受保護收送；由 HTTP/session 契約與 ../../ui-ux-plan/templates/ui-ux-plan.example.md 處理。新匿名 UID 不繼承舊 membership。
+      revocation: active→left 後不得繼續接收；既有 socket 撤權／terminate 行為須實測。U2/U3 未解前不宣告撤權時限或公開安全交付。
+  verification:
+    expectations:
+      - A/B member 可 receive，C、left、無效 JWT 與 public fallback 拒絕；所有 browser send 拒絕，含已連線撤權情境。
+      - 只在 commit 後發最小三欄通知；rollback/rejection/replay/read 不發；發布失敗不改資料結果。
+      - 通知遺失、重複、亂序、重連與較舊 snapshot 不倒退，最終由 GET 取得 caller-safe 狀態。
+    evidence: 本次僅文件解析與共用格式核對；以上整合、policy、socket 撤權檢查均待實作。
+    compatibility: v1 label 與三欄語意固定；破壞性變更需新事件版本／label，同步驗證 HTTP mapper、policy 與多版本 client。

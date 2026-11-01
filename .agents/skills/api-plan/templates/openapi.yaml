@@ -1,0 +1,257 @@
+# 這是格式骨架；具體數量、認證、方法、欄位及狀態碼依本輪契約改寫。
+# 重複適用的 server、tag、path／operation、response、schema 與訊息區塊。
+# 刪除不適用區塊；純非 HTTP 保留 paths: {}，以具名 x-* 承載協定。
+openapi: 3.1.2
+info:
+  title: "{{API_TITLE}}"
+  version: "{{API_CONTRACT_VERSION}}"
+  description: "{{SCOPE_SOURCE_AND_ANALYSIS_LIMIT}}"
+servers:
+  - url: "{{SERVER_URL}}"
+    description: "{{SERVER_DESCRIPTION_AND_CONFIGURATION_STATUS}}"
+    # 只有參數化 URL 才保留 variables。
+    variables:
+      "{{SERVER_VARIABLE}}":
+        default: "{{SERVER_VARIABLE_DEFAULT}}"
+        description: "{{SERVER_VARIABLE_DESCRIPTION}}"
+tags:
+  - name: "{{SERVICE_TAG}}"
+    description: "{{SERVICE_RESPONSIBILITY}}"
+# 下列擴充區只保留適用內容；其他協定可用 x-interfaces 下的具名條目。
+x-session:
+  initialization: "{{SESSION_ACQUISITION_AND_RESTORE}}"
+  recovery: "{{SESSION_LIFECYCLE_AND_NEW_IDENTITY_LIMIT}}"
+  trust: "{{CREDENTIAL_VERIFICATION_AND_CALLER_AUTHORIZATION}}"
+x-command-recovery:
+  identity: "{{IDEMPOTENCY_SCOPE_AND_CANONICAL_PAYLOAD}}"
+  replay: "{{SAME_KEY_REPLAY_MISMATCH_AND_CORRELATION}}"
+  unknown: "{{UNKNOWN_OUTCOME_AND_RESULT_RESOLUTION}}"
+x-environment:
+  public: "{{PUBLIC_PRIVATE_CONFIGURATION_AND_SECRET_HOLDERS}}"
+  access: "{{REQUIRED_AUTHORIZATION_CONFIGURATION_AND_ENABLEMENT_LIMIT}}"
+  cors: "{{CORS_ORIGIN_METHOD_REQUEST_HEADERS_EXPOSED_HEADERS_AND_CREDENTIALS}}"
+  deferred: "{{PLAN_UNKNOWN_REFERENCE_IMPACT_AND_HANDOVER_TIMING}}"
+x-verification-expectations:
+  - "{{REPRESENTATIVE_OBSERVABLE_RESULT_AND_LATER_VERIFICATION}}"
+  - "{{ACTUAL_DOCUMENT_CHECKS_AND_UNEXECUTED_INTEGRATION_LIMIT}}"
+paths:
+  "{{RESOURCE_PATH}}":
+    "{{HTTP_METHOD}}":
+      tags: ["{{SERVICE_TAG}}"]
+      operationId: "{{OPERATION_ID}}"
+      summary: "{{OPERATION_SUMMARY}}"
+      description: "{{CALLER_GUARDS_ATOMIC_RESULT_VISIBILITY_AND_RECOVERY}}"
+      # 依實際 scheme 改寫；公開操作可明示 security: []。
+      security:
+        - "{{SECURITY_SCHEME_NAME}}": []
+      # 依 path/query/header/cookie 需求重複參數；沒有參數時刪除。
+      parameters:
+        - $ref: '#/components/parameters/{{PARAMETER_COMPONENT_NAME}}'
+      # 無 body 的查詢刪除此區塊；媒體型別依實案改寫。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/{{REQUEST_SCHEMA_NAME}}'
+            examples:
+              "{{REQUEST_EXAMPLE_NAME}}":
+                summary: "{{REQUEST_EXAMPLE_SUMMARY}}"
+                # value 是具體且符合 schema 的完整資料，可包含巢狀物件／陣列／null。
+                value:
+                  "{{REQUEST_FIELD}}": "{{REQUEST_FIELD_EXAMPLE}}"
+      responses:
+        "{{SUCCESS_STATUS}}":
+          description: "{{SUCCESS_COMMIT_AND_REPLAY_SEMANTICS}}"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/{{RESULT_SCHEMA_NAME}}'
+              examples:
+                "{{RESULT_EXAMPLE_NAME}}":
+                  summary: "{{RESULT_EXAMPLE_SUMMARY}}"
+                  value:
+                    "{{RESULT_FIELD}}": "{{RESULT_FIELD_EXAMPLE}}"
+          # 按需求重複或刪除標頭。
+          headers:
+            "{{RESPONSE_HEADER_NAME}}":
+              $ref: '#/components/headers/{{HEADER_COMPONENT_NAME}}'
+        "{{ERROR_STATUS}}":
+          $ref: '#/components/responses/{{ERROR_RESPONSE_NAME}}'
+components:
+  securitySchemes:
+    "{{SECURITY_SCHEME_NAME}}":
+      # 此處示範 HTTP bearer；apiKey／OAuth2 等以其標準欄位改寫。
+      type: http
+      scheme: bearer
+      bearerFormat: "{{BEARER_FORMAT}}"
+      description: "{{CREDENTIAL_SOURCE_VERIFICATION_AND_LIFECYCLE}}"
+  parameters:
+    "{{PARAMETER_COMPONENT_NAME}}":
+      name: "{{PARAMETER_WIRE_NAME}}"
+      in: "{{PARAMETER_LOCATION}}"
+      required: true
+      description: "{{PARAMETER_SCOPE_AUTHORIZATION_AND_SERIALIZATION}}"
+      schema:
+        $ref: '#/components/schemas/{{PARAMETER_SCHEMA_NAME}}'
+      example: "{{PARAMETER_EXAMPLE}}"
+  schemas:
+    # 純值 schema 可重複；type、format、pattern、enum／const、長度及數值限制按實案保留。
+    "{{SCALAR_SCHEMA_NAME}}":
+      type: "{{SCALAR_TYPE}}"
+      format: "{{SCALAR_FORMAT}}"
+      pattern: "{{SCALAR_PATTERN}}"
+      description: "{{SCALAR_MEANING_AND_CONSTRAINTS}}"
+      example: "{{SCALAR_EXAMPLE}}"
+    # 物件 schema 可重複；properties 可依實際型別內嵌 schema 或共用 $ref。
+    "{{OBJECT_SCHEMA_NAME}}":
+      type: object
+      additionalProperties: false
+      description: "{{OBJECT_MEANING_VISIBILITY_AND_CROSS_FIELD_CONSTRAINTS}}"
+      required: ["{{FIELD_NAME}}"]
+      properties:
+        "{{FIELD_NAME}}":
+          $ref: '#/components/schemas/{{FIELD_SCHEMA_NAME}}'
+      example:
+        "{{FIELD_NAME}}": "{{FIELD_EXAMPLE}}"
+    # 集合 schema 或集合 property 的 items 使用相同結構，數量限制按實案補入。
+    "{{ARRAY_SCHEMA_NAME}}":
+      type: array
+      items:
+        $ref: '#/components/schemas/{{ITEM_SCHEMA_NAME}}'
+      description: "{{ARRAY_ORDERING_AND_CONSTRAINTS}}"
+    # 需要 null 的 schema／property 明示分支；可為 null 不等於可省略。
+    "{{NULLABLE_SCHEMA_NAME}}":
+      anyOf:
+        - $ref: '#/components/schemas/{{NON_NULL_SCHEMA_NAME}}'
+        - type: 'null'
+    # 有互斥狀態才採 oneOf；分支及 discriminator mapping 依實案重複／刪除。
+    "{{UNION_SCHEMA_NAME}}":
+      oneOf:
+        - $ref: '#/components/schemas/{{VARIANT_SCHEMA_NAME}}'
+      discriminator:
+        propertyName: "{{DISCRIMINATOR_FIELD}}"
+        mapping:
+          "{{VARIANT_WIRE_VALUE}}": '#/components/schemas/{{VARIANT_SCHEMA_NAME}}'
+    "{{VARIANT_SCHEMA_NAME}}":
+      allOf:
+        - $ref: '#/components/schemas/{{BASE_SCHEMA_NAME}}'
+        - type: object
+          # 此處限制 base 已有欄位；若增加欄位，調整閉合策略避免 allOf 誤拒。
+          properties:
+            "{{DISCRIMINATOR_FIELD}}":
+              const: "{{VARIANT_WIRE_VALUE}}"
+    # 錯誤可用共用 object／組合分支表達，不固定其欄位數、錯誤碼或回覆 envelope。
+    "{{ERROR_SCHEMA_NAME}}":
+      type: object
+      additionalProperties: false
+      required: ["{{ERROR_CODE_FIELD}}", "{{ERROR_MESSAGE_FIELD}}", "{{CORRELATION_FIELD}}"]
+      properties:
+        "{{ERROR_CODE_FIELD}}":
+          type: string
+          description: "{{ERROR_CODE_MEANING_AND_RECOVERY_CLASSIFICATION}}"
+        "{{ERROR_MESSAGE_FIELD}}":
+          type: string
+          description: "{{SAFE_ERROR_MESSAGE_DESCRIPTION}}"
+        "{{CORRELATION_FIELD}}":
+          $ref: '#/components/schemas/{{CORRELATION_SCHEMA_NAME}}'
+  headers:
+    "{{HEADER_COMPONENT_NAME}}":
+      description: "{{HEADER_PURPOSE_BODY_RELATION_AND_BROWSER_READABILITY}}"
+      schema:
+        $ref: '#/components/schemas/{{HEADER_SCHEMA_NAME}}'
+  responses:
+    "{{ERROR_RESPONSE_NAME}}":
+      description: "{{ERROR_RESULT_VISIBILITY_AND_CALLER_NEXT_STEP}}"
+      headers:
+        "{{ERROR_HEADER_NAME}}":
+          $ref: '#/components/headers/{{ERROR_HEADER_COMPONENT_NAME}}'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/{{ERROR_SCHEMA_NAME}}'
+          examples:
+            "{{ERROR_EXAMPLE_NAME}}":
+              summary: "{{ERROR_EXAMPLE_SUMMARY}}"
+              # 依 schema 填完整、安全且型別正確的資料，可重複多個拒絕／恢復案例。
+              value:
+                "{{ERROR_CODE_FIELD}}": "{{ERROR_EXAMPLE_CODE}}"
+                "{{ERROR_MESSAGE_FIELD}}": "{{ERROR_EXAMPLE_MESSAGE}}"
+                "{{CORRELATION_FIELD}}": "{{CORRELATION_EXAMPLE}}"
+# 有即時訊息才保留；多個獨立事件可在此區使用具名條目並重複 contract 結構。
+x-realtime:
+  name: "{{MESSAGE_CONTRACT_NAME}}"
+  status: "{{MESSAGE_ANALYSIS_AND_RUNTIME_STATUS}}"
+  sources:
+    - "{{MESSAGE_SOURCE_LOCATION_AND_ADOPTED_DECISION}}"
+  related:
+    snapshot: "{{AUTHORITATIVE_READ_JSON_POINTER_OR_LOCATION}}"
+    experience: "{{UI_DOCUMENT_LOCATION}}"
+  contract:
+    # 傳輸名稱可獨立記錄或與 topic 描述並列，依實際協定改寫。
+    transport: "{{MESSAGE_TRANSPORT}}"
+    # topic 形狀與 private 值按實際協定改寫，不由範例推定其授權。
+    topic:
+      format: "{{TOPIC_FORMAT}}"
+      private: true
+      description: "{{TOPIC_LOCATOR_AUTHORIZATION_AND_SCOPE}}"
+    event: "{{EVENT_LABEL}}"
+    payload:
+      type: object
+      additionalProperties: false
+      required: ["{{MESSAGE_FIELD}}"]
+      properties:
+        "{{MESSAGE_FIELD}}":
+          $ref: '#/components/schemas/{{MESSAGE_FIELD_SCHEMA_NAME}}'
+      example:
+        "{{MESSAGE_FIELD}}": "{{MESSAGE_FIELD_EXAMPLE}}"
+    authorization:
+      receive: "{{SUBSCRIBE_RECEIVE_SCOPE_AND_REVOCATION}}"
+      browserSend: "{{CLIENT_PUBLISH_AUTHORIZATION}}"
+      publisher: "{{SERVER_PUBLISHER_AND_TRUST_BOUNDARY}}"
+      credentials: "{{MESSAGE_CREDENTIAL_HOLDERS_AND_REDACTION}}"
+    publish:
+      when: "{{PUBLISH_COMMIT_OR_ACCEPTANCE_POINT}}"
+      skip:
+        - "{{NON_PUBLISHING_CONDITION}}"
+      contents: "{{MESSAGE_VISIBILITY_AND_MINIMIZATION}}"
+      result: "{{ACCEPTED_VERSUS_DELIVERED_AND_PUBLISH_FAILURE_RESULT}}"
+      implementation: "{{CONFIRMED_OR_PROPOSED_PUBLISH_PATH}}"
+    delivery:
+      guarantees: "{{LOSS_DUPLICATION_ORDER_AND_REPLAY_GUARANTEES}}"
+      version: "{{ORDER_OR_VERSION_SCOPE_PRECISION_AND_DUPLICATE_HANDLING}}"
+      unknownEvent: "{{UNKNOWN_OR_INVALID_MESSAGE_HANDLING}}"
+    recovery:
+      initial: "{{INITIAL_SUBSCRIBE_AND_READ_RULE}}"
+      notification: "{{NOTIFICATION_APPLICATION_OR_AUTHORITATIVE_READ}}"
+      reconnect: "{{REAUTHORIZE_AND_RECOVER_AFTER_RECONNECT_OR_REFRESH}}"
+      denial: "{{DENIED_ACCESS_AND_IDENTITY_CHANGE_RECOVERY}}"
+      revocation: "{{EXISTING_CONNECTION_REVOCATION_AND_UNVERIFIED_LIMIT}}"
+  verification:
+    expectations:
+      - "{{MESSAGE_AUTHORIZATION_DELIVERY_OR_RECOVERY_EXPECTATION}}"
+    evidence: "{{ACTUAL_MESSAGE_DOCUMENT_CHECKS_AND_UNEXECUTED_RUNTIME_CHECKS}}"
+    compatibility: "{{MESSAGE_VERSION_COMPATIBILITY_AND_BREAKING_CHANGE_POLICY}}"
+# 認證以外的純 RPC、第三方或維運控制協定可改用此具名結構；無則刪除。
+x-interfaces:
+  "{{INTERFACE_KEY}}":
+    name: "{{INTERFACE_NAME}}"
+    transport: "{{INTERFACE_TRANSPORT_OR_CONTROL_SURFACE}}"
+    source: "{{INTERFACE_SOURCE_AND_DECISION}}"
+    operation: "{{TRIGGER_CALLER_PROVIDER_AND_CONTROL_BOUNDARY}}"
+    # 有交換資料才保留；request／response 依實際協定增減，不使用虛構 HTTP path。
+    request:
+      schema:
+        $ref: '#/components/schemas/{{INTERFACE_INPUT_SCHEMA_NAME}}'
+      example:
+        "{{INTERFACE_INPUT_FIELD}}": "{{INTERFACE_INPUT_EXAMPLE}}"
+    response:
+      schema:
+        $ref: '#/components/schemas/{{INTERFACE_RESULT_SCHEMA_NAME}}'
+      example:
+        "{{INTERFACE_RESULT_FIELD}}": "{{INTERFACE_RESULT_EXAMPLE}}"
+    authorization: "{{INTERFACE_IDENTITY_SCOPE_AND_AUTHORIZATION}}"
+    success: "{{INTERFACE_ACCEPTANCE_COMMIT_AND_DELIVERY_MEANING}}"
+    failureAndRecovery: "{{INTERFACE_FAILURE_RETRY_AND_UNKNOWN_RESULT}}"
+    lifecycle: "{{INTERFACE_CONFIGURATION_COMPATIBILITY_AND_ENABLEMENT_LIMIT}}"
+    verification: "{{INTERFACE_ACTUAL_CHECKS_AND_LATER_EXPECTATIONS}}"

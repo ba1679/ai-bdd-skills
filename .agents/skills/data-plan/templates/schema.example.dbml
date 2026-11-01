@@ -1,0 +1,180 @@
+Project online_pvp_1a2b {
+  Note: '''
+  依 ../../../../specs/online-pvp-1a2b/spec.md FR-001～FR-012、NFR-001～NFR-005、../../../../specs/online-pvp-1a2b/research.md R02～R05 與 ../../system-analysis/templates/plan.example.md。
+  本檔為 schema 與資料規則的唯一來源。auth_users 是 auth.users(id) 引用占位，僅其餘五表由本案擁有。
+  交易：可信 caller_id 只由 Edge Function 驗證 JWT 後注入。receipt 比對、room 鎖、member/host/state 檢查、寫入、版本與原回覆 snapshot 在同一短交易 commit；失敗不可留下 partial game rows。業務拒絕可存 receipt，但不加版本／發通知。
+  授權：exposed game tables 啟用 RLS 並 revoke anon/authenticated SELECT/INSERT/UPDATE/DELETE；browser 無 RPC EXECUTE。特權 RPC 僅供 server service role，仍逐次檢查 caller；SECURITY DEFINER 須固定安全 search_path 並撤 browser EXECUTE／置於非 exposed schema。
+  投影：依 ../../api-plan/templates/openapi.example.yaml 的 RoomSnapshot 計算 caller 專屬視圖，不另建 snapshot table。只回傳房間摘要、本人角色、readiness、版本、本人結果與本人猜測。任何狀態都不回傳任一答案／UID／對手猜測；receipt 同樣遮蔽。Realtime 只發 commit 後失效訊號，見 ../../api-plan/templates/openapi.example.yaml 的 x-realtime。
+  未決見 ../../system-analysis/templates/plan.example.md：U1 阻塞衝突算例驗收；U2 未定前不設 TTL/cascade cleanup、不保證長期 replay；U5/U6 變更會影響投影。waiting 答案修訂僅資料設計提案，UI 不提供編輯承諾；單 UID 多房間未設全域限制。
+  演進：SQL/RLS/RPC/policy 由 migrations 實作。詳細發布／備份／restore 延至公開交付；restore 須讓五表回到同一可判讀時間點，否則停止舊 ID 回放，不能再執行當作新命令。
+  關鍵待驗證：partial unique 與 join/第三人競態、host/ready/state guards、單一 winner、同 ID 平行 replay/異內容拒絕、不同 ID 同 guess 各留一筆、commit 前後失敗、caller 隔離與秘密遮蔽。DBML parser 只能檢查語法，並非 SQL/RLS/交易已通過。
+  '''
+}
+
+Enum room_state {
+  waiting [note: '已建立或正在準備；尚不可猜測']
+  playing [note: '兩位成員的答案已鎖定，兩人可各自猜測']
+  ended [note: '已有唯一 winner；禁止答案、開始與猜測 mutation']
+}
+
+Enum membership_state {
+  active [note: '目前仍是此 room 成員，可受 member／host 權限檢查']
+  left [note: '保留歷史 membership；不可操作。waiting 的 host 離開使 start 拒絕，後續處置見 U2']
+}
+
+Enum command_operation {
+  join_or_create [note: '以 pairing code 建立 waiting room 或加入唯一可加入 room']
+  submit_answer [note: '提交或在 waiting 的設計提案下修訂 caller 自己的秘密答案']
+  start_match [note: 'host 在兩位 active member 均 ready 時開始']
+  submit_guess [note: 'playing member 對對手答案送出一筆有效猜測']
+}
+
+Enum command_outcome {
+  applied [note: '已在同一 transaction 提交完整遊戲 mutation 或可確認的既有 member 結果']
+  invalid_input [note: '資料格式／值域不合法；不能變更遊戲狀態']
+  room_not_joinable [note: 'pairing code 對應 room 已滿、不是 waiting 或因 U2 主持人離開規則不可加入']
+  not_member [note: '可信 caller 不屬於目標 room 的 active member']
+  not_host [note: 'caller 是 member 但不是 rooms.host_user_id']
+  members_incomplete [note: '尚非兩位可用 active member']
+  answers_incomplete [note: '兩位 active member 尚未各有一筆有效 secret answer']
+  wrong_room_state [note: '操作不符合 waiting／playing／ended 狀態；包含 ended 後猜測']
+  request_payload_mismatch [note: '已有同 actor/request id 但 canonical fingerprint 不同；不覆寫既有 receipt']
+}
+
+Table auth_users {
+  id uuid [pk, not null, note: '引用 Supabase auth.users.id；匿名 authenticated UID 的唯一可信來源，型別採其已確認 UUID 身分用途']
+
+  Note: 'Supabase auth.users(id) 引用占位；本案不擁有或重設計 Auth schema，不提供 browser 查詢入口。'
+}
+
+Table rooms {
+  id uuid [pk, not null, note: '設計推導的內部 room 識別；由受控資料層產生，不是 client actor 或配對碼']
+  pairing_code varchar(4) [not null, check: `pairing_code ~ '^[0-9]{4}$'`, note: '四位數完整比對；首位可為 0。active 唯一性由本表 Note 的 partial unique index 實作，DBML 無法表達 WHERE 條件']
+  state room_state [not null, default: 'waiting', note: '權威 room 狀態；所有轉移只由鎖定 rooms row 的 RPC 執行']
+  host_user_id uuid [not null, note: '建立 room 的可信 caller UID；不可由 client 指定，且必須在 room_members 中有 active membership（跨表不變條件由 RPC 強制）']
+  winner_user_id uuid [null, note: '僅 ended 時存在；必須是本 room 的 member 且以 4A0B 完成判定的 actor（跨表不變條件由 RPC 強制）']
+  state_version bigint [not null, default: 0, check: `state_version >= 0`, note: '初建 room 為 0；每個改變可觀察共享狀態的成功 mutation 在同一 transaction 恰加一。snapshot 與 Broadcast 用它比較新舊，不是 client 可寫版本']
+  created_at timestamptz [not null, default: `CURRENT_TIMESTAMP`, note: '資料庫建立時間；不作瀏覽器送出先後或 winner 裁決依據']
+  started_at timestamptz [null, note: 'waiting→playing 的 commit 時間；未開始為空']
+  ended_at timestamptz [null, note: '4A0B 導致 playing→ended 的 commit 時間；未結束為空']
+
+  indexes {
+    (pairing_code) [name: 'idx_rooms_pairing_code']
+  }
+
+  checks {
+    `((state = 'waiting' AND started_at IS NULL AND winner_user_id IS NULL AND ended_at IS NULL) OR (state = 'playing' AND started_at IS NOT NULL AND winner_user_id IS NULL AND ended_at IS NULL) OR (state = 'ended' AND started_at IS NOT NULL AND winner_user_id IS NOT NULL AND ended_at IS NOT NULL))` [name: 'chk_rooms_state_shape']
+  }
+
+  Note: '''
+  房間 aggregate root；roomId 僅定位，不授權。
+  migration 必須建立 UNIQUE(pairing_code) WHERE state IN ('waiting','playing')；一般 index 不可取代。無 active code 時 insert room+host membership，unique conflict 後重讀唯一 room，不建立第二間。
+  既有 room 的 join/answer/start/guess 先 SELECT ... FOR UPDATE rooms row，再檢查 active membership/state。join 只接受可用 waiting seat；已是 member 不重建 row。滿員／playing／不可加入狀態拒絕；ended 同 code 的再使用仍待 U2，不在 UI 承諾。
+  start 僅 active host、兩 active members、兩有效答案，waiting→playing 並設 started_at。4A0B 的 guess/winner/ended_at/ended/version 一起提交；晚到者取得鎖後見 ended，拒絕且不留 guess。ended 不逆轉或重開。
+  host/winner 必屬同房 member 是 RPC 跨表不變條件，不是外鍵／check 已保證。不同房可並行，同房鎖決定序列，不以瀏覽器或 timestamp 判勝。
+  初建 version=0；共享狀態成功改變一次恰加一。snapshot 是同一一致視圖；commit 後才通知 roomId/version/kind。replay、拒絕、讀取、rollback 都不加版本／通知。
+  '''
+}
+
+Table room_members {
+  room_id uuid [not null, note: '所屬 room；membership、RLS 與 snapshot 的資料隔離範圍']
+  user_id uuid [not null, note: '由驗證 JWT 導出的匿名 Auth UID；沒有 client supplied actor id 對應欄位']
+  seat smallint [not null, check: `seat IN (1, 2)`, note: '受控 join 交易分配的兩人席位；與 `(room_id, seat)` 唯一性共同在資料結構層限制一場 room 最多兩位成員']
+  membership_state membership_state [not null, default: 'active', note: 'active 才可 answer／start／guess 與訂閱；left 僅保留歷史，離開流程細節待 U2']
+  joined_at timestamptz [not null, default: `CURRENT_TIMESTAMP`, note: '資料庫記錄加入時間；不是 winner／guess 的裁決時間']
+  left_at timestamptz [null, note: 'membership_state=left 時的資料庫時間；沒有已定的 client leave／timeout mutation']
+
+  indexes {
+    (room_id, user_id) [pk, name: 'pk_room_members']
+    (room_id, seat) [unique, name: 'uq_room_members_room_seat']
+    (user_id) [name: 'idx_room_members_user']
+  }
+
+  checks {
+    `((membership_state = 'active' AND left_at IS NULL) OR (membership_state = 'left' AND left_at IS NOT NULL))` [name: 'chk_room_members_state_shape']
+  }
+
+  Note: '''
+  (room_id,user_id) 識別 membership；角色由 rooms.host_user_id 推導。join 在 rooms lock 下分配 seat 1/2，unique(room_id,seat) 限制歷史座位，RPC 仍須驗證容量。
+  room 建立者同交易成為 active host；waiting host left 後不轉移房主且不可 start。是否替補／釋放 code／逾時處置見 U2；目前沒有 leave/cleanup mutation 契約，不開放未定操作。
+  所有 read/mutation/private receive 依 active membership 授權；browser 不直接查表，不公開 UID。單 UID 一個 active room 並非既定規則。
+  '''
+}
+
+Table secret_answers {
+  room_id uuid [not null, note: '答案所屬 room；只允許該 room 的可信 active member 寫入自己的 row']
+  user_id uuid [not null, note: '答案所有者；必須對應 room_members 的同一 `(room_id, user_id)`，由 RPC 跨表驗證']
+  secret_value varchar(4) [not null, check: `secret_value ~ '^[1-9][0-9]{3}$' AND substring(secret_value from 1 for 1) <> substring(secret_value from 2 for 1) AND substring(secret_value from 1 for 1) <> substring(secret_value from 3 for 1) AND substring(secret_value from 1 for 1) <> substring(secret_value from 4 for 1) AND substring(secret_value from 2 for 1) <> substring(secret_value from 3 for 1) AND substring(secret_value from 2 for 1) <> substring(secret_value from 4 for 1) AND substring(secret_value from 3 for 1) <> substring(secret_value from 4 for 1)`, note: '4 位數、首位非 0、四位互不重複。資料庫 check 是第二道格式防線；RPC 仍須驗證並不得在錯誤或日誌回傳原值']
+  submitted_at timestamptz [not null, default: `CURRENT_TIMESTAMP`, note: '首次資料庫接受時間；不是 client 輸入時間']
+  updated_at timestamptz [not null, default: `CURRENT_TIMESTAMP`, note: 'waiting 期間修訂設計提案的最後接受時間；playing 後不得變更']
+
+  indexes {
+    (room_id, user_id) [pk, name: 'pk_secret_answers']
+  }
+
+  Note: '''
+  只供 start guard 與 DB 內判定，readiness 由有效 row 衍生，不複寫 boolean。browser 無任何 direct grant，snapshot/receipt/通知/log 不含 secret_value，連本人也只見 readiness。
+  寫入須 rooms lock、caller active、waiting、兩 active members。同 request ID 回放；不同 ID 在 waiting 更新自己 row 是待產品確認的設計提案，不能作 client 保證。start 後一律拒絕修改。
+  生命週期依 U2，ended 答案揭露依 U5；未確認前繼續遮蔽，不能以自身答案或 ended 為理由開 SELECT。
+  '''
+}
+
+Table guesses {
+  id uuid [pk, not null, note: '設計推導的不可變 guess 記錄識別；由受控資料層產生，不是 UI 或 client 的 idempotency key']
+  room_id uuid [not null, note: '所屬 playing room']
+  actor_id uuid [not null, note: '送出猜測的可信 caller UID；必須是 room active member']
+  guess_value varchar(4) [not null, check: `guess_value ~ '^[1-9][0-9]{3}$' AND substring(guess_value from 1 for 1) <> substring(guess_value from 2 for 1) AND substring(guess_value from 1 for 1) <> substring(guess_value from 3 for 1) AND substring(guess_value from 1 for 1) <> substring(guess_value from 4 for 1) AND substring(guess_value from 2 for 1) <> substring(guess_value from 3 for 1) AND substring(guess_value from 2 for 1) <> substring(guess_value from 4 for 1) AND substring(guess_value from 3 for 1) <> substring(guess_value from 4 for 1)`, note: '與答案相同的格式規則；無效 input 不可建立 row']
+  exact_count smallint [not null, check: `exact_count >= 0 AND exact_count <= 4`, note: 'A 值；只能由 DB RPC 依對手 secret 計算']
+  misplaced_count smallint [not null, check: `misplaced_count >= 0 AND misplaced_count <= 4`, note: 'B 值；只能由 DB RPC 依對手 secret 計算']
+  recorded_state_version bigint [not null, check: `recorded_state_version >= 1`, note: '同一 transaction 中 rooms.state_version 遞增後的值；提供 room 內一致排序／snapshot 比較，不代表 browser timestamp']
+  created_at timestamptz [not null, default: `CURRENT_TIMESTAMP`, note: '資料庫接受時間；同時猜中的 winner 仍由 rooms row lock 序列化，而非 timestamp 比較']
+
+  indexes {
+    (room_id, recorded_state_version) [unique, name: 'uq_guesses_room_state_version']
+    (room_id, actor_id, recorded_state_version) [name: 'idx_guesses_room_actor_version']
+  }
+
+  checks {
+    `exact_count + misplaced_count <= 4` [name: 'chk_guesses_score_range']
+  }
+
+  Note: '''
+  每次成功命令的 immutable caller guess；不同 request ID 的相同 guess 各自留一筆，不在 guess_value 上去重。
+  rooms lock 下驗證 active member + playing，再從同房另一成員的秘密於 DB 計算 A/B；不接受 client 提交 A/B/opponent/winner/version。insert 與 version 同交易，4A0B 同時提交唯一 winner 與 ended；晚到者不新增 guess。
+  A+B<=4 僅值域約束，不證明演算法。snapshot 只投影 caller 自己的 guess/A/B/recordedStateVersion，依精確版本遞增；無 direct browser SELECT。U1/U2/U6 見 ../../system-analysis/templates/plan.example.md。
+  '''
+}
+
+Table command_receipts {
+  actor_id uuid [not null, note: '可信 caller UID；同一匿名 UID 內的 request id 作用域。清除 browser data 後的新 UID 無法重放舊 receipt']
+  request_id uuid [not null, note: '同一次使用者命令的穩定識別；型別為本資料設計推導，API 決定 wire 傳遞格式但必須可映射為此唯一性']
+  operation command_operation [not null, note: '將 fingerprint 限定到 mutation 意圖；不是 HTTP route 名稱']
+  request_fingerprint text [not null, note: 'operation 加 canonical payload 的 server-side keyed fingerprint。特別是 submit_answer 必須使用 HMAC 等不可離線反推四位答案的方法；key 只在 server secret，不寫進 table、回應或 log']
+  room_id uuid [null, note: '評估／套用後的 room；格式失敗或尚未建立 room 的終局結果可為空']
+  outcome command_outcome [not null, note: '資料語意 outcome，不是 HTTP status 或 wire error code']
+  response_snapshot jsonb [null, note: '原 transaction 建立的 caller-safe、遮蔽 snapshot／結果，供同 ID 同 fingerprint 回放；禁止含 raw secret 或未決 U5／U6 資料']
+  snapshot_state_version bigint [null, check: `snapshot_state_version >= 0`, note: 'response_snapshot 所對應 rooms.state_version；沒有 room 的結果可為空']
+  recorded_at timestamptz [not null, default: `CURRENT_TIMESTAMP`, note: 'receipt commit 時間；不提供全域遊戲排序或 retention 承諾']
+
+  indexes {
+    (actor_id, request_id) [pk, name: 'pk_command_receipts_actor_request']
+    (room_id, recorded_at) [name: 'idx_command_receipts_room_recorded']
+  }
+
+  Note: '''
+  (actor_id,request_id) 為去重作用域；API commandId 對應 request_id，與每次 HTTP requestId 診斷碼不同。
+  驗證 JWT／拒絕 client actor 後才進 RPC。同 ID 同 operation+canonical payload 回放原 outcome/遮蔽 snapshot；異 fingerprint 拒絕，不覆寫、不重跑。無 receipt 才執行 room 交易並記錄可穩定成功／拒絕；平行 insert 主鍵競爭輸家重讀比較，不產生第二次 mutation。
+  answer 低熵，fingerprint 必須 keyed HMAC，不存 raw payload／無 key hash；key 在 server secret，輪替仍須能比對舊 ID。browser 無 direct grant；receipt 無 raw answer／對手 guess。
+  回放 snapshot 是原版本，不能覆蓋較新 UI；沒有可讀 room 時可為 null。遊戲變更與可重建的 receipt 回覆必須同交易成立；不能先 commit 遊戲卻缺重送結果。
+  U2 未定前不設 TTL；retention 至少涵蓋承諾重送窗，cleanup/restore 與其他表一致，不能刪 receipt 後把舊 ID 當新命令。
+  '''
+}
+
+Ref rooms_host_user: rooms.host_user_id > auth_users.id
+Ref rooms_winner_user: rooms.winner_user_id > auth_users.id
+Ref room_members_room: room_members.room_id > rooms.id
+Ref room_members_user: room_members.user_id > auth_users.id
+Ref secret_answers_member: secret_answers.(room_id, user_id) > room_members.(room_id, user_id)
+Ref guesses_member: guesses.(room_id, actor_id) > room_members.(room_id, user_id)
+Ref command_receipts_actor: command_receipts.actor_id > auth_users.id
+Ref command_receipts_room: command_receipts.room_id > rooms.id

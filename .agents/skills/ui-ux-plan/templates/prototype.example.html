@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>1A2B · 雙人數字對決｜互動原型</title>
+<style>
+:root{--ink:#182e27;--muted:#53665c;--green:#17634d;--lime:#dfefa8;--paper:#f6f6ef;--line:#d7dfd4;--red:#a53325;--white:#fff;--amber:#795118}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.65 -apple-system,BlinkMacSystemFont,"Noto Sans TC","PingFang TC",sans-serif}button,input,select{font:inherit}button,summary,select{cursor:pointer}button{min-height:46px;border:1px solid var(--line);border-radius:9px;background:white;color:var(--ink);padding:10px 18px;font-weight:650}button:hover:not(:disabled){background:#edf2e9;border-color:var(--green)}button.primary{background:var(--green);border-color:var(--green);color:white}button.primary:hover:not(:disabled){background:#104e3c}button:disabled{cursor:not-allowed;opacity:.5}a{color:var(--green)}:focus-visible{outline:3px solid #ad6020;outline-offset:4px}input,select{min-height:50px;width:100%;padding:11px 14px;border:1px solid #8d9f90;border-radius:8px;background:white;color:var(--ink)}input.digits{font:600 29px/1.3 ui-monospace,SFMono-Regular,monospace;letter-spacing:.23em}input[aria-invalid=true]{border:2px solid var(--red)}label{display:block;font-weight:650;margin:0 0 8px}.wrap{max-width:1136px;margin:auto;padding:26px 28px 42px}.top{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding-bottom:19px;gap:20px}.brand{font-size:22px;font-weight:850;letter-spacing:-.05em}.brand span{display:inline-grid;place-items:center;background:var(--ink);color:var(--lime);border-radius:7px;width:38px;height:38px;font-size:17px;letter-spacing:-.09em;margin-right:10px}.label{font-size:12px;letter-spacing:.12em;text-transform:uppercase;font-weight:750;color:var(--muted)}.tag{border:1px solid #a7b69f;border-radius:30px;padding:5px 12px;font-size:12px;white-space:nowrap}.intro{display:flex;justify-content:space-between;gap:22px;align-items:end;margin:30px 0 23px}.intro h1{font-size:clamp(28px,4vw,38px);line-height:1.25;letter-spacing:-.045em;margin:6px 0 10px}.intro p{margin:0;color:var(--muted);max-width:680px;font-size:14px}.intro .edition{font:600 13px ui-monospace,monospace;color:var(--muted);white-space:nowrap}.steps{display:flex;gap:8px;padding:0;margin:0 0 18px;list-style:none}.steps li{display:flex;gap:9px;align-items:center;padding:9px 12px;background:#e9ede4;border-radius:7px;font-size:13px;color:var(--muted);flex:1}.steps li.current{background:var(--ink);color:var(--lime)}.steps b{font:500 12px ui-monospace,monospace}.board{display:grid;grid-template-columns:286px minmax(0,1fr);gap:18px}.room{background:var(--ink);color:white;border-radius:16px;padding:27px 24px;display:flex;flex-direction:column;min-height:542px}.room .label{color:#b6cdbb}.code{display:flex;gap:8px;margin:16px 0 18px}.code span{display:grid;place-items:center;border:1px solid #546b5b;background:#243e32;border-radius:7px;font:550 30px/1 ui-monospace,monospace;width:48px;height:62px;color:var(--lime)}.room h2{font-size:16px;font-weight:550;margin:0 0 26px;color:#d1dfd1}.player{display:flex;gap:12px;align-items:center;padding:17px 0;border-top:1px solid #435d4d}.avatar{display:grid;place-items:center;width:37px;height:37px;border-radius:50%;background:#3c5747;color:#dfefa8;font:600 14px ui-monospace,monospace}.player strong{display:block;font-size:14px}.player small{display:block;color:#c1d3c3;font-size:12px}.room .rule{margin-top:auto;padding-top:32px;font-size:13px;color:#c0d4c1}.room .rule b{color:var(--lime)}.surface{border:1px solid var(--line);background:white;border-radius:16px;padding:28px 30px;min-width:0}.surface header{display:flex;gap:12px;justify-content:space-between;align-items:start;margin-bottom:19px}.surface h2{font-size:25px;line-height:1.4;margin:3px 0 7px;letter-spacing:-.03em}.sub{color:var(--muted);font-size:14px;margin:0}.connection{font-size:12px;color:var(--green);background:#edf4e9;border-radius:20px;padding:5px 10px;white-space:nowrap}.connection.stale{color:var(--amber);background:#fbefd8}.task{padding:20px 0 7px}.hint{display:block;color:var(--muted);font-size:13px;margin:9px 0 19px}.error{color:var(--red);font-size:13px;margin:9px 0}.controls{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.notice{padding:12px 15px;background:#edf4e9;border:1px solid #d5e3cd;border-radius:8px;font-size:14px;margin:18px 0}.notice.warning{background:#fff5df;border-color:#e5cf9e;color:#725019}.notice.error{background:#fff0eb;border-color:#e4c4b7;color:var(--red)}.notice p{margin:0}.notice button{margin:12px 0 0}.history{margin-top:25px;border-top:1px solid var(--line);padding-top:18px}.section-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}.section-title h3{font-size:14px;margin:0}.section-title span{color:var(--muted);font-size:12px}.empty{padding:24px 16px;border:1px dashed var(--line);border-radius:9px;color:var(--muted);font-size:14px;text-align:center}.history table{border-collapse:collapse;width:100%;text-align:left}.history th{color:var(--muted);font-size:12px;font-weight:500;padding:6px 9px}.history td{padding:10px 9px;border-top:1px solid #e7ece4;font-size:14px}.history td.guess{font:600 21px ui-monospace,monospace;letter-spacing:.15em}.score{display:inline-block;padding:3px 9px;background:#ecf4e6;border-radius:6px;color:#22503c;font-weight:700;letter-spacing:.04em}.result{padding:24px;background:#f0f5e5;border:1px solid #c9d7b1;border-radius:12px}.result h3{font-size:30px;line-height:1.3;margin:0 0 8px}.result p{margin:0;font-size:14px}.footnote{font-size:12px;color:var(--muted);margin:12px 0 0}.review{margin-top:26px;border:1px solid var(--line);border-radius:12px;background:#fdfdf8}.review>summary{padding:15px 20px;font-size:14px;font-weight:650;min-height:50px}.review-body{border-top:1px solid var(--line);padding:20px}.review-body>p{font-size:13px;color:var(--muted);margin:0 0 17px}.demo-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.demo-grid label{font-size:13px}.demo-actions{display:flex;gap:8px;flex-wrap:wrap}.demo-actions button{font-size:13px;padding:8px 12px}.divider{border:0;border-top:1px solid var(--line);margin:22px 0}.guides{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:13px}.guides button{font-size:13px}.guides button[aria-pressed=true]{background:var(--ink);color:white}.guide-box{background:#f0f3e9;padding:17px;border-radius:9px}.guide-box p{font-size:14px;margin:0 0 12px}.guide-box .label{margin-bottom:5px}.review-status{font-size:12px;color:var(--muted);margin:15px 0 0;overflow-wrap:anywhere}.footer{display:flex;justify-content:space-between;gap:12px;font-size:12px;color:var(--muted);margin-top:22px}.hidden{display:none!important}@media(max-width:740px){.wrap{padding:18px 16px 30px}.intro{margin:24px 0 18px}.intro .edition{display:none}.steps{gap:5px}.steps li{justify-content:center;font-size:12px;padding:8px 5px;gap:5px}.board{grid-template-columns:1fr}.room{min-height:0;padding:21px 20px}.room-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.code{margin:10px 0}.code span{width:35px;height:46px;font-size:24px}.room h2{margin:0;font-size:13px}.players{display:grid;grid-template-columns:1fr 1fr;gap:15px}.player{padding:14px 0 0;margin-top:10px}.room .rule{padding-top:17px;font-size:12px}.surface{padding:22px 20px}.surface h2{font-size:23px}.surface header{gap:8px}.demo-grid{grid-template-columns:1fr}.footer{display:block}.footer span{display:block;margin:6px 0}.top{gap:7px}.tag{font-size:11px}.controls button.primary{flex:1}.review-body{padding:17px}.result h3{font-size:26px}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><div class="brand"><span aria-hidden="true">AB</span>數字對決</div><span class="tag">互動原型 · 假資料</span></div>
+  <div class="intro"><div><div class="label">1A2B / Two minds, four digits</div><h1>先猜中，贏下這一局。</h1><p>用這個原型確認：兩位玩家能否理解準備、自由猜測，以及斷線或結果未知時的恢復操作。可直接操作，或展開下方評審工具走完整流程。</p></div><span class="edition">PROTOTYPE / 01</span></div>
+  <ol class="steps" aria-label="對戰進度" id="steps"></ol>
+  <main class="board" aria-label="玩家操作畫面">
+    <aside class="room" aria-label="房間資訊" id="room"></aside>
+    <section class="surface" aria-label="目前任務"><div id="task"></div><div id="feedback" role="status" aria-live="polite" aria-atomic="true" tabindex="-1"></div><div id="history"></div></section>
+  </main>
+  <details class="review" id="review"><summary>原型評審工具與流程導覽</summary><div class="review-body">
+    <p>以下控制僅用於示範。兩位假玩家、服務、通知及命令回放都在記憶體中；不連線 Supabase。真正重新整理此檔會重置示範。</p>
+    <div class="demo-grid"><div><label for="perspective">觀看哪位玩家</label><select id="perspective"><option value="A">玩家 A</option><option value="B">玩家 B</option></select></div><div><label for="response-mode">下一次命令回覆</label><select id="response-mode"><option value="normal">正常回覆</option><option value="unknown">已執行，但回覆遺失</option></select></div></div>
+    <div class="demo-actions" style="margin-top:15px"><button id="demo-join">讓另一位加入同房</button><button id="demo-ready">讓另一位準備完成</button><button id="demo-win">讓另一位猜中</button><button id="demo-start">嘗試開始（檢查權限／條件）</button><button id="demo-ended-guess">嘗試猜測（檢查狀態）</button></div>
+    <div class="demo-actions" style="margin-top:10px"><button id="demo-disconnect">中斷目前連線</button><button id="demo-read-fail">模擬讀取失敗</button><button id="demo-reload">重載房間</button><button id="demo-old">送來較舊回覆</button><button id="demo-reset">重置示範</button></div>
+    <hr class="divider"><div class="guides" aria-label="選擇導覽"><button data-guide="happy" aria-pressed="false">主要流程</button><button data-guide="reject" aria-pressed="false">格式與業務拒絕</button><button data-guide="recover" aria-pressed="false">未知結果與重連</button></div>
+    <div class="guide-box"><div class="label" id="guide-progress">自由操作</div><p id="guide-description">選擇導覽會重置假資料，建立該情境的起點。也可以切換玩家視角，自行輸入答案與猜測。</p><button id="guide-next" class="primary hidden">下一步</button></div>
+    <p id="review-status" class="review-status" role="status" aria-live="polite">示範已就緒，尚無房間。</p>
+  </div></details>
+  <div class="footer"><span>4 位不重複數字 · 首位不可為 0 · 不分回合</span><span>原型只供評審，正式契約見 <a href="ui-ux-plan.example.md">UI 紀錄</a></span></div>
+</div>
+<script>
+// 純記憶體假服務；不連網、不持久化，不構成客戶端安全保證。
+const Duel = (() => {
+ const valid = value => /^(?!.*([0-9]).*\1)[1-9][0-9]{3}$/.test(value);
+ const fresh = () => ({rooms:{},receipts:{}});
+ const score = (answer, guess) => {let a=0,b=0;[...guess].forEach((n,i)=>{if(answer[i]===n)a++;else if(answer.includes(n))b++;});return {exactCount:a,misplacedCount:b};};
+ const snapshot = (state, actor, roomId) => {
+  const r=state.rooms[roomId];if(!r||!r.members.includes(actor))return null;
+  const other=r.members.find(x=>x!==actor);
+  return {roomId:r.id,pairingCode:r.code,state:r.phase,isCallerHost:r.host===actor,memberCount:r.members.length,readiness:{callerReady:!!r.answers[actor],opponentReady:!!r.answers[other]},stateVersion:r.version,callerResult:r.phase==='ended'?(r.winner===actor?'won':'lost'):null,callerGuesses:r.guesses.filter(x=>x.actor===actor).map(({actor,...x})=>({...x}))};
+ };
+ const command = (current, actor, input) => {
+  const state=structuredClone(current),key=actor+':'+input.commandId;
+  const {commandId,...payload}=input,fingerprint=JSON.stringify(payload); // 僅供示範；正式服務須使用帶密鑰的 HMAC。
+  const previous=state.receipts[key];
+  if(previous)return {state,result:previous.fingerprint===fingerprint?structuredClone(previous.result):{code:'REQUEST_PAYLOAD_MISMATCH',snapshot:null},replayed:true};
+  let r=state.rooms[input.roomId],code=null,changed=false;
+  if(input.op==='join'){
+   if(!/^[0-9]{4}$/.test(input.pairingCode))code='INVALID_INPUT';
+   else{r=Object.values(state.rooms).find(x=>x.code===input.pairingCode);
+    if(!r){r={id:input.newRoomId,code:input.pairingCode,phase:'waiting',host:actor,members:[actor],answers:{},guesses:[],winner:null,version:'0'};state.rooms[r.id]=r;}
+    else if(r.phase==='ended')code='ROOM_NOT_JOINABLE';else if(r.members.includes(actor)){}else if(r.phase!=='waiting'||r.members.length===2)code='ROOM_NOT_JOINABLE';else{r.members.push(actor);changed=true;}}
+  }else if(!r||!r.members.includes(actor))code='NOT_MEMBER';
+  else if(input.op==='answer'){
+   if(!valid(input.answer))code='INVALID_INPUT';else if(r.phase!=='waiting')code='WRONG_ROOM_STATE';else if(r.members.length!==2)code='MEMBERS_INCOMPLETE';else if(r.answers[actor])code='ANSWER_REVISION_UNDECIDED';else{r.answers[actor]=input.answer;changed=true;}
+  }else if(input.op==='start'){
+   if(r.host!==actor)code='NOT_HOST';else if(r.phase!=='waiting')code='WRONG_ROOM_STATE';else if(r.members.length!==2)code='MEMBERS_INCOMPLETE';else if(!r.members.every(x=>r.answers[x]))code='ANSWERS_INCOMPLETE';else{r.phase='playing';changed=true;}
+  }else if(input.op==='guess'){
+   if(!valid(input.guess))code='INVALID_INPUT';else if(r.phase!=='playing')code='WRONG_ROOM_STATE';else{const other=r.members.find(x=>x!==actor),s=score(r.answers[other],input.guess);r.guesses.push({actor,guess:input.guess,...s,recordedStateVersion:String(BigInt(r.version)+1n)});if(s.exactCount===4){r.phase='ended';r.winner=actor;}changed=true;}
+  }else code='INVALID_INPUT';
+  if(changed)r.version=String(BigInt(r.version)+1n);
+  const result={commandId,code:code||'APPLIED',snapshot:code==='ROOM_NOT_JOINABLE'||code==='NOT_MEMBER'?null:snapshot(state,actor,r?.id)};
+  state.receipts[key]={fingerprint,result:structuredClone(result)};return {state,result,replayed:false};
+ };
+ return {valid,fresh,score,snapshot,command};
+})();
+</script>
+<script>
+const $=id=>document.getElementById(id),esc=s=>String(s).replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
+const uuid=()=>crypto.randomUUID();
+let server=Duel.fresh(),actor='A',busy=false,epoch=0,mode='normal',guide=null,guideIndex=0,reviewText='示範已就緒，尚無房間。';
+const client=()=>({roomId:null,snapshot:null,online:true,stale:false,pending:null,code:'0624',answer:'',guess:'',message:'',tone:'',fieldError:''});
+let clients={A:client(),B:client()};
+const labels={INVALID_INPUT:'請輸入四位不重複、首位非 0 的數字。',NOT_MEMBER:'目前身分沒有操作此房間的權限。',NOT_HOST:'只有房主可以開始對戰。',MEMBERS_INCOMPLETE:'需要兩位玩家加入後才能繼續。',ANSWERS_INCOMPLETE:'雙方都準備完成後才能開始。',WRONG_ROOM_STATE:'房間狀態已改變，這次操作沒有被接受。',ROOM_NOT_JOINABLE:'此配對碼目前無法加入。',REQUEST_PAYLOAD_MISMATCH:'請保留原本操作的內容，再確認結果。',ANSWER_REVISION_UNDECIDED:'此原型不提供答案修訂；規則尚待確認。'};
+const pause=()=>new Promise(resolve=>setTimeout(resolve,550));
+function accept(who,snap){if(!snap)return false;const c=clients[who];if(c.snapshot?.roomId===snap.roomId&&BigInt(snap.stateVersion)<BigInt(c.snapshot.stateVersion)){reviewText='較舊回覆已忽略，房間畫面沒有倒退。';return false;}c.roomId=snap.roomId;c.snapshot=structuredClone(snap);return true;}
+function notifyOthers(who){for(const x of ['A','B']){const c=clients[x];if(x!==who&&c.roomId){if(c.online){const oldPhase=c.snapshot?.state;accept(x,Duel.snapshot(server,x,c.roomId));if(!c.pending){c.stale=false;if(oldPhase!==c.snapshot?.state){c.message=c.snapshot?.state==='ended'?'本局結果已更新。':'對戰已開始，可以自由猜測。';c.tone='';}}}else c.stale=true;}}}
+function displayMessage(text,tone=''){clients[actor].message=text;clients[actor].tone=tone;}
+async function send(op,data={},options={}){
+ if(busy)return;const who=options.who||actor,c=clients[who];if(!c.online&&!options.demo){displayMessage('目前已斷線，請先恢復連線。','warning');render();return;}
+ const input=options.input||{op,commandId:uuid(),...(op==='join'?{newRoomId:uuid()}:{}),...data};const token=epoch;
+ busy=true;if(who===actor){c.fieldError='';c.message='正在確認，請稍候…';c.tone='';}render();await pause();if(token!==epoch)return;
+ const output=Duel.command(server,who,input);server=output.state;notifyOthers(who);
+ const lose=options.lose||(who===actor&&mode==='unknown');if(who===actor){mode='normal';$('response-mode').value='normal';}
+ if(lose){c.pending=input;c.stale=true;c.message='操作可能已完成，但還沒收到結果。請確認這次操作，避免重複送出。';c.tone='warning';}
+ else{c.pending=null;if(output.result.snapshot){accept(who,output.result.snapshot);c.stale=false;}c.message=output.result.code==='APPLIED'?(output.replayed?'已確認原本操作，沒有重複執行。':{join:'已加入房間。',answer:'秘密答案已接受，已清除輸入。',start:'對戰開始，現在可以自由猜測。',guess:'猜測結果已更新。'}[op]):labels[output.result.code]||'此操作未被接受。';c.tone=output.result.code==='APPLIED'?'':'error';if(output.result.code==='APPLIED'){if(op==='answer')c.answer='';if(op==='guess')c.guess='';}}
+ reviewText=`玩家 ${who}：${output.replayed?'回放原本結果':output.result.code==='APPLIED'?'操作已接受':'操作已拒絕'}。${clients[actor].snapshot?'目前房間版本 '+clients[actor].snapshot.stateVersion+'。':''}`;
+ busy=false;render();if(who===actor)$('feedback').focus({preventScroll:true});return output;
+}
+async function sync(reload=false){if(busy)return;const who=actor,c=clients[who],token=epoch;busy=true;c.online=true;c.stale=true;c.message='正在重新取得房間狀態…';c.tone='';if(reload){c.snapshot=null;c.answer='';c.guess='';}render();await pause();if(token!==epoch)return;const snap=Duel.snapshot(server,who,c.roomId);if(snap){accept(who,snap);c.stale=false;c.message=c.pending?'房間已同步；仍需確認原本操作的結果。':'房間已同步。';c.tone=c.pending?'warning':'';}else{c.roomId=null;c.snapshot=null;c.message='找不到可讀取的房間，請重新配對。';c.tone='error';}busy=false;render();}
+function switchActor(next){if(busy)return;actor=next;$('perspective').value=next;render();}
+function reset(){epoch++;server=Duel.fresh();clients={A:client(),B:client()};actor='A';busy=false;mode='normal';guide=null;guideIndex=0;$('perspective').value='A';$('response-mode').value='normal';reviewText='已重置假資料。這是評審工具，不是正式的重新開局功能。';render();}
+function render(){
+ const c=clients[actor],s=c.snapshot,stage=!s?0:s.state==='ended'?3:s.state==='playing'?2:1,locked=busy||!!c.pending||c.stale||!c.online;
+ $('steps').innerHTML=['配對入房','雙方準備','自由猜測','對戰結束'].map((x,i)=>`<li ${i===stage?'class="current" aria-current="step"':''}><b>0${i+1}</b>${x}</li>`).join('');
+ const ready=s?.readiness,phase=s?.state,code=s?.pairingCode||'----';
+ $('room').innerHTML=`<div class="room-head"><div><div class="label">${s?'房間配對碼':'等待配對'}</div><div class="code" aria-label="${s?'配對碼 '+esc(code):'尚未加入房間'}">${[...code].map(x=>`<span aria-hidden="true">${x}</span>`).join('')}</div></div><h2>${!s?'找一位對手，開始對決。':phase==='playing'?'對戰中 · 不分回合':phase==='ended'?'本局已結束':`等待室 · ${s.memberCount} / 2 人`}</h2></div><div class="players"><div class="player"><span class="avatar" aria-hidden="true">YOU</span><div><strong>你${s?(s.isCallerHost?' · 房主':' · 玩家'):''}</strong><small>${ready?.callerReady?'已準備':s?'尚未準備':'匿名玩家'}</small></div></div><div class="player"><span class="avatar" aria-hidden="true">P2</span><div><strong>${s?.memberCount===2?'對手':'等待另一位玩家'}</strong><small>${ready?.opponentReady?'已準備':s?.memberCount===2?'尚未準備':'分享同一組配對碼即可加入'}</small></div></div></div><div class="rule"><b>A</b> 數字和位置都正確<br><b>B</b> 數字正確，位置不同<br><br>先取得 <b>4A0B</b> 的玩家勝出。<br>秘密答案不會顯示給對手。</div>`;
+ let heading='',description='',body='';
+ if(!s){heading=c.roomId?'正在恢復房間':'輸入配對碼';description=c.roomId?'正在重新取得這個房間的資料。':'使用相同的四位配對碼，就能進入同一間房。';body=c.roomId?'':`<form id="entry-form" novalidate><label for="code">四位配對碼</label><input class="digits" id="code" name="pairingCode" inputmode="numeric" autocomplete="off" maxlength="4" value="${esc(c.code)}" aria-describedby="code-hint field-error" ${locked?'disabled':''}><small id="code-hint" class="hint">配對碼可包含 0 或重複數字，例如 0624。</small><div class="error" id="field-error" role="alert">${esc(c.fieldError)}</div><button class="primary" ${locked?'disabled':''}>${busy?'正在加入…':'建立／加入房間'}</button></form>`;}
+ else if(phase==='waiting'){heading=s.memberCount<2?'等候對手加入':ready.callerReady?'你已準備完成':'設定你的秘密答案';description=s.memberCount<2?'把配對碼告訴對手；雙方加入後就能準備。':ready.callerReady?'等待雙方準備完成，由房主開始這一局。':'對手會猜這組數字，請保密。';
+ if(s.memberCount===2&&!ready.callerReady)body=`<form id="answer-form" novalidate><label for="answer">你的秘密答案</label><input class="digits" type="password" id="answer" name="answer" inputmode="numeric" autocomplete="off" maxlength="4" value="${esc(c.answer)}" aria-describedby="answer-hint field-error" ${locked?'disabled':''}><small id="answer-hint" class="hint">四位數字、首位不可為 0，且每位數字不重複。接受後只顯示準備狀態。</small><div class="error" id="field-error" role="alert">${esc(c.fieldError)}</div><button class="primary" ${locked?'disabled':''}>${busy?'正在提交…':'提交秘密答案'}</button></form>`;
+ else body=`<div class="empty">${s.memberCount<2?'等候另一位玩家使用相同配對碼加入。':'你的答案已接受，畫面不保留答案內容。'}</div>`;
+ body+=`<div class="controls">${s.isCallerHost?`<button id="start" class="primary" ${locked||s.memberCount<2||!ready.callerReady||!ready.opponentReady?'disabled':''}>開始對戰</button>`:''}</div><p class="hint">${!s.isCallerHost?'等待房主開始對戰。':s.memberCount<2?'還需要另一位玩家加入。':!ready.callerReady||!ready.opponentReady?'雙方都準備完成後，房主才能開始。':'雙方都已準備，可以開始了。'}</p>`;
+ }else if(phase==='playing'){heading='猜出對手的四位數字';description='不需要等對手，你可以隨時提交下一次猜測。';body=`<form id="guess-form" novalidate><label for="guess">這次要猜的數字</label><input class="digits" id="guess" name="guess" inputmode="numeric" autocomplete="off" maxlength="4" value="${esc(c.guess)}" aria-describedby="guess-hint field-error" ${locked?'disabled':''}><small id="guess-hint" class="hint">四位不重複數字，首位不可為 0。相同數字可以再次猜測。</small><div class="error" id="field-error" role="alert">${esc(c.fieldError)}</div><button class="primary" ${locked?'disabled':''}>${busy?'正在判定…':'送出猜測'}</button></form>`;
+ }else{heading='對戰結束';description='本局結果已確認，猜測紀錄保留供你查看。';body=`<div class="result"><div class="label">${s.callerResult==='won'?'YOU WON':'MATCH COMPLETE'}</div><h3>${s.callerResult==='won'?'你猜中了，贏得這一局！':'對手先猜中了。'}</h3><p>${s.callerResult==='won'?'4A0B，四位數字與位置全部正確。':'你已完成這場對決，可以回顧自己的猜測。'}</p></div><p class="hint">本局已結束，無法再提交猜測。</p>`;}
+ $('task').innerHTML=`<header><div><div class="label">${s?'YOUR NEXT MOVE':'LET’S PLAY'}</div><h2>${heading}</h2><p class="sub">${description}</p></div><span class="connection ${c.stale||!c.online?'stale':''}">${!c.online?'連線中斷':c.stale?'待同步':'連線正常'}</span></header><div class="task" aria-busy="${busy}">${body}</div>`;
+ let text=c.message;if(!text&&busy)text='正在載入…';
+ $('feedback').innerHTML=(text||c.stale||!c.online)?`<div class="notice ${c.tone==='error'?'error':c.pending||c.stale||!c.online?'warning':''}"><p>${esc(text||'資料可能已過期，請重新同步。')}</p>${c.pending?`<button id="retry-command" ${busy||!c.online?'disabled':''}>確認這次操作</button>`:''}${c.roomId&&(!c.online||c.stale)&&!busy?'<button id="resync">'+(!c.online?'恢復連線':'重新同步房間')+'</button>':''}</div>`:'';
+ const list=s?.callerGuesses||[];$('history').innerHTML=s?`<div class="history"><div class="section-title"><h3>我的猜測紀錄</h3><span>${list.length} 次猜測</span></div>${list.length?`<table><thead><tr><th scope="col">次數</th><th scope="col">猜測</th><th scope="col">結果</th></tr></thead><tbody>${list.map((x,i)=>`<tr><td>${String(i+1).padStart(2,'0')}</td><td class="guess">${esc(x.guess)}</td><td><span class="score">${x.exactCount}A${x.misplacedCount}B</span></td></tr>`).join('')}</tbody></table>`:`<div class="empty">${phase==='ended'?'你在本局沒有提交猜測。':phase==='waiting'?'對戰開始後，這裡會顯示你的猜測紀錄。':'你的第一筆猜測，會出現在這裡。'}</div>`}<p class="footnote">這裡只顯示你自己的猜測與判定結果。</p></div>`:'';
+ bindForm('entry-form','code','join','pairingCode',v=>/^[0-9]{4}$/.test(v),'配對碼必須是四位數字。');bindForm('answer-form','answer','answer','answer',Duel.valid,labels.INVALID_INPUT);bindForm('guess-form','guess','guess','guess',Duel.valid,labels.INVALID_INPUT);
+ if($('start'))$('start').onclick=()=>send('start',{roomId:c.roomId});
+ if($('retry-command'))$('retry-command').onclick=()=>send(c.pending.op,{}, {input:c.pending});
+ if($('resync'))$('resync').onclick=()=>sync();
+ $('review-status').textContent=reviewText;
+ $('perspective').disabled=busy;$('response-mode').disabled=busy;
+ document.querySelectorAll('.demo-actions button,.guides button').forEach(x=>x.disabled=busy);
+ document.querySelectorAll('[data-guide]').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.guide===guide)));
+ const step=guide&&guides[guide].steps[guideIndex];$('guide-progress').textContent=guide?`${guides[guide].title} · ${Math.min(guideIndex+1,guides[guide].steps.length)} / ${guides[guide].steps.length}`:'自由操作';
+ $('guide-description').textContent=step?step[0]:guide?'導覽完成。可以繼續自由操作，或選另一個情境重新開始。':'選擇導覽會重置假資料，建立該情境的起點。也可以切換玩家視角，自行輸入答案與猜測。';
+ $('guide-next').classList.toggle('hidden',!step);$('guide-next').textContent=step?'執行：'+step[1]:'下一步';$('guide-next').disabled=busy;
+}
+function bindForm(formId,field,op,key,valid,error){const form=$(formId);if(!form)return;$(field).setAttribute('aria-invalid',String(!!clients[actor].fieldError));$(field).addEventListener('input',e=>{clients[actor][field]=e.target.value;});form.onsubmit=e=>{e.preventDefault();const c=clients[actor],value=c[field];if(!valid(value)){c.fieldError=error;render();$(field).setAttribute('aria-invalid','true');$(field).focus();return;}send(op,{[key]:value,...(op==='join'?{}:{roomId:c.roomId})});};}
+$('perspective').onchange=e=>switchActor(e.target.value);$('response-mode').onchange=e=>mode=e.target.value;
+$('demo-reset').onclick=reset;
+$('demo-join').onclick=()=>{const c=clients[actor],s=c.snapshot;if(!s){displayMessage('請先建立房間，再讓另一位加入。','warning');render();return;}send('join',{pairingCode:s.pairingCode},{who:actor==='A'?'B':'A',demo:true});};
+$('demo-ready').onclick=()=>{const c=clients[actor],other=actor==='A'?'B':'A';if(!c.roomId){displayMessage('請先建立房間。','warning');render();return;}send('answer',{roomId:c.roomId,answer:other==='B'?'5678':'1234'},{who:other,demo:true});};
+$('demo-win').onclick=()=>{const c=clients[actor],other=actor==='A'?'B':'A',r=server.rooms[c.roomId];if(!r||!r.answers[actor]){displayMessage('請先讓雙方準備並開始對戰。','warning');render();return;}send('guess',{roomId:c.roomId,guess:r.answers[actor]},{who:other,demo:true});};
+$('demo-start').onclick=()=>send('start',{roomId:clients[actor].roomId});$('demo-ended-guess').onclick=()=>send('guess',{roomId:clients[actor].roomId,guess:'1234'});
+$('demo-disconnect').onclick=()=>{const c=clients[actor];c.online=false;c.stale=true;displayMessage('連線已中斷，目前畫面可能過期。你的輸入仍保留。','warning');render();};
+$('demo-read-fail').onclick=()=>{clients[actor].stale=true;displayMessage('暫時無法取得房間資料。請保留畫面，稍後重新同步。','warning');render();};
+$('demo-reload').onclick=()=>clients[actor].roomId?sync(true):(displayMessage('尚無可恢復的房間。','warning'),render());
+$('demo-old').onclick=()=>{const s=clients[actor].snapshot;if(!s||s.stateVersion==='0'){reviewText='先進行操作，累積房間版本後再示範舊回覆。';}else{const old=structuredClone(s);old.stateVersion=String(BigInt(old.stateVersion)-1n);accept(actor,old);}render();};
+function seedPlaying(){for(const [who,op,data] of [['A','join',{pairingCode:'0624',newRoomId:uuid()}],['B','join',{pairingCode:'0624',newRoomId:uuid()}],['A','answer',{answer:'1234'}],['B','answer',{answer:'5678'}],['A','start',{}]]){const roomId=Object.keys(server.rooms)[0];const {state,result}=Duel.command(server,who,{commandId:uuid(),op,roomId,...data});server=state;accept(who,result.snapshot);}for(const who of ['A','B'])accept(who,Duel.snapshot(server,who,Object.keys(server.rooms)[0]));}
+const guides={
+ happy:{title:'主要流程',steps:[
+  ['建立房間後，房主會看見配對碼和等候狀態。','玩家 A 建立房間',()=>send('join',{pairingCode:'0624'})],
+  ['第二位玩家使用相同配對碼加入。','玩家 B 加入',()=>send('join',{pairingCode:'0624'},{who:'B',demo:true})],
+  ['玩家 A 設定示範答案 1234，接受後輸入會清除。','玩家 A 準備',()=>{clients.A.answer='1234';return send('answer',{roomId:clients.A.roomId,answer:'1234'});}],
+  ['玩家 B 的示範答案為 5678；玩家 A 只會看見對手已準備。','玩家 B 準備',()=>send('answer',{roomId:clients.A.roomId,answer:'5678'},{who:'B',demo:true})],
+  ['只有房主能開始；開始後不分回合。','房主開始',()=>send('start',{roomId:clients.A.roomId})],
+  ['猜 1679，依正確位置判定得到 2A0B。','提交一次猜測',()=>send('guess',{roomId:clients.A.roomId,guess:'1679'})],
+  ['猜中 5678 後，同一份房間結果結束對戰。','玩家 A 猜中',()=>send('guess',{roomId:clients.A.roomId,guess:'5678'})],
+  ['玩家 B 看見對手先猜中；看不到 A 的猜測紀錄或答案。','切到玩家 B',()=>switchActor('B')]
+ ]},
+ reject:{title:'格式與業務拒絕',steps:[
+  ['已設好一局對戰。0112 同時違反首位與不重複規則。','檢查無效輸入',()=>{clients.A.guess='0112';render();$('guess-form').requestSubmit();}],
+  ['切到非房主，從評審工具嘗試開始；服務模型仍須拒絕。','非房主嘗試開始',()=>{switchActor('B');return send('start',{roomId:clients.B.roomId});}],
+  ['由玩家 A 猜中，取得唯一勝者。','結束對戰',()=>{switchActor('A');return send('guess',{roomId:clients.A.roomId,guess:'5678'});}],
+  ['玩家 B 再嘗試猜測，必須拒絕，不新增猜測紀錄。','結束後再送猜測',()=>{switchActor('B');return send('guess',{roomId:clients.B.roomId,guess:'1234'});}]
+ ]},
+ recover:{title:'未知結果與重連',steps:[
+  ['已設好一局對戰。服務接受猜測，但玩家沒收到回覆。','送出並遺失回覆',()=>send('guess',{roomId:clients.A.roomId,guess:'1679'},{lose:true})],
+  ['沿用原本操作確認，紀錄只會有一筆。','確認同一次操作',()=>send('guess',{}, {input:clients.A.pending})],
+  ['較舊回覆不能覆蓋目前畫面。','送來較舊回覆',()=>$('demo-old').click()],
+  ['玩家 A 斷線，保留舊畫面並停用猜測。','中斷連線',()=>$('demo-disconnect').click()],
+  ['斷線期間玩家 B 猜中。A 不會靠遺失的通知自行知道結果。','讓玩家 B 猜中',()=>send('guess',{roomId:clients.A.roomId,guess:'1234'},{who:'B',demo:true})],
+  ['恢復連線後重新讀取，畫面顯示已結束及失敗結果。','恢復並同步',()=>sync()]
+ ]}
+};
+document.querySelectorAll('[data-guide]').forEach(b=>b.onclick=()=>{reset();guide=b.dataset.guide;if(guide!=='happy')seedPlaying();render();});
+$('guide-next').onclick=async()=>{const name=guide,index=guideIndex;await guides[name].steps[index][2]();if(guide===name&&guideIndex===index){guideIndex++;render();}};
+render();
+</script>
+</body>
+</html>

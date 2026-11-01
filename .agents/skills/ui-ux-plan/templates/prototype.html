@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>{{EXPERIENCE_TITLE}}｜互動原型</title>
+<style>
+:root{--ink:#172c30;--muted:#516268;--accent:#12634d;--paper:#f6f7f4;--line:#d3ddda;--error:#a12d25}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Noto Sans TC","PingFang TC",sans-serif}button,input,select{font:inherit}button,summary,select{cursor:pointer}button,input,select{min-height:44px;padding:10px 14px;border:1px solid #7b918b;border-radius:7px;background:white;color:var(--ink)}button{font-weight:650}button.primary{background:var(--accent);color:white}button:disabled{opacity:.5;cursor:not-allowed}:focus-visible{outline:3px solid #95581b;outline-offset:3px}a{color:var(--accent)}label{display:block;font-weight:650;margin-top:15px}input,select{width:100%}input[aria-invalid=true]{border:2px solid var(--error)}small,.muted{color:var(--muted)}.wrap{max-width:1100px;margin:auto;padding:24px}.top,.footer,.controls{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.tag{font-size:13px;border:1px solid var(--line);border-radius:30px;padding:4px 12px}.intro{margin:28px 0}h1{font-size:clamp(27px,4vw,38px);line-height:1.25}h1,h2{letter-spacing:-.03em}.steps{display:flex;list-style:none;gap:8px;padding:0;flex-wrap:wrap}.steps li{border:1px solid var(--line);padding:8px 14px;border-radius:7px}.steps [aria-current=step]{background:var(--accent);color:white}.board{display:grid;grid-template-columns:minmax(220px,1fr) minmax(0,2fr);gap:20px}.room,.surface,.review{border:1px solid var(--line);border-radius:12px;background:white;padding:24px}.surface{min-width:0}.room dl{margin:0}.room dt{color:var(--muted);font-size:13px}.room dd{margin:0 0 15px;overflow-wrap:anywhere}.notice,.error{overflow-wrap:anywhere}.notice{background:#eff4ec;border:1px solid var(--line);border-radius:8px;padding:16px;margin:20px 0}.notice.warning{background:#fff2d8}.notice.error{background:#fff0ea}.error{color:var(--error)}.controls{justify-content:flex-start;margin:18px 0}form button{margin-top:20px}table{border-collapse:collapse;width:100%;margin-top:14px}td,th{text-align:left;padding:10px 6px;border-bottom:1px solid var(--line);overflow-wrap:anywhere}.review{margin-top:24px}.review summary{font-weight:700}.review-body{padding-top:18px}.demo-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.guides{margin-top:18px}.guides button[aria-pressed=true]{background:var(--ink);color:white}.guide-box{padding:16px;background:#f0f4ec;border-radius:8px}.footer{margin-top:22px;font-size:13px}.hidden{display:none!important}@media(max-width:700px){.wrap{padding:16px}.board,.demo-grid{grid-template-columns:1fr}.room,.surface,.review{padding:20px}.controls button{flex:1}.steps li{font-size:13px;padding:7px 10px}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top"><strong>{{PRODUCT_LABEL}}</strong><span class="tag">互動原型 · 假資料</span></header>
+  <div class="intro"><h1>{{USER_GOAL_TITLE}}</h1><p>{{PROTOTYPE_QUESTION_AND_SCOPE}}</p></div>
+  <ol class="steps" id="steps" aria-label="操作進度"></ol>
+  <main class="board" aria-label="使用者操作畫面">
+    <aside class="room" id="summary" aria-label="目前資訊"></aside>
+    <section class="surface" aria-label="目前任務">
+      <div id="task"></div>
+      <div id="feedback" role="status" aria-live="polite" aria-atomic="true" tabindex="-1"></div>
+      <div id="history"></div>
+    </section>
+  </main>
+  <details class="review"><summary>原型評審工具與流程導覽</summary><div class="review-body">
+    <p>以下控制僅用於示範。資料與假服務都在記憶體內；不連線真實服務，重新整理會重置。</p>
+    <div class="demo-grid"><div><label for="perspective">觀看哪個角色</label><select id="perspective"></select></div><div><label for="response-mode">下一次命令回覆</label><select id="response-mode"><option value="normal">正常回覆</option><option value="unknown">已執行，但回覆遺失</option></select></div></div>
+    <div class="controls"><button id="demo-disconnect">模擬斷線</button><button id="demo-old">送來舊回覆</button><button id="demo-read-fail">模擬讀取失敗</button><button id="demo-reset">重置示範</button></div>
+    <div class="controls guides" id="guide-list" aria-label="選擇導覽"></div>
+    <div class="guide-box"><p id="guide-description">可自由操作，或選擇導覽建立情境起點。</p><button id="guide-next" class="hidden">下一步</button></div>
+    <p id="review-status" class="muted" role="status" aria-live="polite"></p>
+  </div></details>
+  <footer class="footer"><span>{{BUSINESS_RULE_REMINDER}}</span><span>原型只供評審，詳見 <a href="{{UI_MARKDOWN_PATH}}">UI 紀錄</a></span></footer>
+</div>
+<script>
+// 依本輪增減角色、畫面、操作與欄位；每種操作／狀態各複製對應物件或 case。
+// 本骨架只提供承載結構；前置條件、運算及副作用必須依來源完成，不把預設分支當業務規則。
+const actors=[{id:'{{ACTOR_ID}}',label:'{{ACTOR_LABEL}}'}];
+const screens=[{id:'{{STATE_ID}}',label:'{{STATE_LABEL}}',title:'{{STATE_TITLE}}',description:'{{STATE_DESCRIPTION}}'}];
+const operations=[{
+ id:'{{OPERATION_ID}}',label:'{{OPERATION_LABEL}}',states:['{{STATE_ID}}'],actors:['{{ACTOR_ID}}'],
+ fields:[{id:'{{FIELD_ID}}',label:'{{FIELD_LABEL}}',hint:'{{FIELD_HINT}}',type:'{{HTML_INPUT_TYPE}}',pattern:'{{INPUT_PATTERN}}',error:'{{VALIDATION_MESSAGE}}'}]
+}];
+// 假資料可含不同角色資料；project 才決定畫面允許看到的內容。
+const fresh=()=>({phase:'{{INITIAL_STATE_ID}}',version:'0',context:{'{{CONTEXT_PROPERTY}}':'{{CONTEXT_SAMPLE}}'},records:[],receipts:{}});
+const freshClient=()=>({snapshot:null,input:{},pending:null,online:true,stale:false,message:'',errorField:null});
+const project=(model,actor)=>({phase:model.phase,version:model.version,
+ summary:[{label:'{{SUMMARY_LABEL}}',value:model.context['{{CONTEXT_PROPERTY}}']}],
+ records:model.records.filter(row=>row.actor===actor).map(({actor,...row})=>({...row}))});
+const uuid=()=>globalThis.crypto?.randomUUID?.()||'demo-'+Date.now()+'-'+Math.random().toString(16).slice(2);
+// 依來源擴充 guards、衍生資料、角色投影及原子狀態轉移；正式服務安全另由 API／Data 保證。
+function command(current,actor,input){
+ const next=structuredClone(current),op=operations.find(item=>item.id===input.operation);
+ const key=actor+':'+input.id,fingerprint=JSON.stringify({operation:input.operation,body:input.body});
+ const previous=next.receipts[key];
+ if(previous)return{model:next,result:previous.fingerprint===fingerprint?structuredClone(previous.result):{code:'ID_CONTENT_MISMATCH',message:'同一次操作的內容不同。',snapshot:null}};
+ const reject=message=>({model:current,result:{code:'REJECTED',message,snapshot:project(current,actor)}});
+ if(!op||!op.actors.includes(actor))return reject('目前角色無法執行這項操作。');
+ if(!op.states.includes(next.phase))return reject('目前狀態無法執行這項操作。');
+ for(const field of op.fields){if(!new RegExp(field.pattern).test(String(input.body[field.id]??'')))return reject(field.error);}
+ switch(input.operation){
+  case '{{OPERATION_ID}}': {
+   // 此分支為一項操作的結構；依本案補上必要條件、計算與寫入，並增減其他 case。
+   if(next.phase==='{{BUSINESS_REJECTED_STATE_ID}}')return reject('{{BUSINESS_REJECTION_MESSAGE}}');
+   next.context['{{UPDATED_PROPERTY}}']=input.body['{{FIELD_ID}}'];
+   next.phase='{{NEXT_STATE_ID}}';
+   break;
+  }
+  default:return reject('尚未支援這項操作。');
+ }
+ next.version=String(BigInt(next.version)+1n);
+ // 公開歷史只放可交付的安全文字；敏感原始欄位不寫入可見紀錄。
+ next.records.push({actor,operation:op.label,summary:'{{SAFE_RESULT_SUMMARY}}',version:next.version});
+ const result={code:'ACCEPTED',message:'{{SUCCESS_MESSAGE}}',snapshot:project(next,actor)};
+ next.receipts[key]={fingerprint,result:structuredClone(result)};
+ return{model:next,result};
+}
+let server=fresh(),clients={},actor=actors[0].id,busy=false,responseMode='normal',generation=0,guide=null,guideIndex=0;
+const $=id=>document.getElementById(id);
+const esc=value=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+const pause=()=>new Promise(resolve=>setTimeout(resolve,650));
+function currentClient(){return clients[actor]??=freshClient();}
+function accept(who,snapshot){
+ if(!snapshot)return;
+ const client=clients[who]??=freshClient();
+ if(client.snapshot&&BigInt(snapshot.version)<BigInt(client.snapshot.version)){$('review-status').textContent='較舊回覆已忽略，畫面沒有倒退。';return;}
+ client.snapshot=structuredClone(snapshot);
+}
+// 此範例通知只觸發權威讀取；依本案契約調整版本／訂閱策略，沒有同步責任時省略。
+function notify(){for(const who of actors.map(item=>item.id)){const client=clients[who];if(client?.online)accept(who,project(server,who));}}
+async function send(operation,body,replay=null){
+ const client=currentClient();if(busy||!client.online||client.stale)return;
+ const input=replay??{id:uuid(),operation,body:structuredClone(body)},who=actor,token=generation;
+ busy=true;client.errorField=null;client.message='處理中，請稍候…';render();await pause();if(token!==generation)return;
+ const outcome=command(server,who,input);server=outcome.model;
+ if(responseMode==='unknown'&&!replay){responseMode='normal';$('response-mode').value='normal';client.pending=input;client.message='結果尚未確認，請確認原本這次操作。';}
+ else{client.pending=null;client.message=outcome.result.message;accept(who,outcome.result.snapshot);if(outcome.result.code==='ACCEPTED')client.input={};}
+ notify();busy=false;render();$('feedback').focus();
+}
+async function sync(){
+ const client=currentClient(),who=actor,token=generation;if(busy)return;
+ busy=true;client.online=true;client.stale=true;client.message='正在重新取得資料…';render();await pause();if(token!==generation)return;
+ accept(who,project(server,who));client.stale=false;client.message=client.pending?'資料已同步，仍需確認原本操作結果。':'資料已同步。';busy=false;render();$('feedback').focus();
+}
+function reset(){generation++;server=fresh();clients={};actor=actors[0].id;busy=false;responseMode='normal';guide=null;guideIndex=0;$('perspective').value=actor;$('response-mode').value='normal';accept(actor,project(server,actor));render();}
+function render(){
+ const client=currentClient(),snapshot=client.snapshot,screen=screens.find(item=>item.id===snapshot?.phase);
+ const locked=busy||!!client.pending||!client.online||client.stale;
+ $('steps').innerHTML=screens.map(item=>`<li ${item.id===snapshot?.phase?'aria-current="step"':''}>${esc(item.label)}</li>`).join('');
+ $('summary').innerHTML=`<h2>{{SUMMARY_TITLE}}</h2><dl>${(snapshot?.summary??[]).map(item=>`<dt>${esc(item.label)}</dt><dd>${esc(item.value)}</dd>`).join('')}</dl><p class="muted">${!client.online?'連線中斷':client.stale?'資料待更新':'資料已同步'}</p>`;
+ const available=operations.filter(item=>item.actors.includes(actor)&&item.states.includes(snapshot?.phase));
+ $('task').innerHTML=`<h2>${esc(screen?.title??'正在載入')}</h2><p>${esc(screen?.description??'請稍候')}</p><div aria-busy="${busy}">${available.map(op=>`<form data-operation="${esc(op.id)}" novalidate>${op.fields.map(field=>`<label for="field-${esc(op.id)}-${esc(field.id)}">${esc(field.label)}</label><input id="field-${esc(op.id)}-${esc(field.id)}" name="${esc(field.id)}" type="${esc(field.type)}" value="${esc(client.input[op.id]?.[field.id]??'')}" aria-describedby="hint-${esc(op.id)}-${esc(field.id)} error-${esc(op.id)}" aria-invalid="${client.errorField===op.id+':'+field.id}" ${locked?'disabled':''}><small id="hint-${esc(op.id)}-${esc(field.id)}">${esc(field.hint)}</small>`).join('')}<div class="error" id="error-${esc(op.id)}" role="alert">${client.errorField?.startsWith(op.id+':')?esc(client.message):''}</div><button class="primary" ${locked?'disabled':''}>${busy?'處理中…':esc(op.label)}</button></form>`).join('')}</div>`;
+ $('feedback').innerHTML=client.message||client.stale||!client.online?`<div class="notice ${client.pending||client.stale?'warning':''}"><p>${esc(client.message||'資料可能已過期。')}</p><div class="controls">${client.pending?`<button id="retry-command" ${busy||!client.online||client.stale?'disabled':''}>確認這次操作</button>`:''}${client.stale||!client.online?`<button id="resync" ${busy?'disabled':''}>重新同步</button>`:''}</div></div>`:'';
+ const rows=snapshot?.records??[];
+ $('history').innerHTML=`<h3>{{HISTORY_TITLE}}</h3>${rows.length?`<table><thead><tr><th scope="col">操作</th><th scope="col">結果</th></tr></thead><tbody>${rows.map(row=>`<tr><td>${esc(row.operation)}</td><td>${esc(row.summary)}</td></tr>`).join('')}</tbody></table>`:'<p class="muted">{{EMPTY_HISTORY_MESSAGE}}</p>'}`;
+ document.querySelectorAll('[data-operation]').forEach(form=>{
+  const op=operations.find(item=>item.id===form.dataset.operation);
+  form.querySelectorAll('input').forEach(input=>input.oninput=()=>{client.input[op.id]??={};client.input[op.id][input.name]=input.value;});
+  form.onsubmit=event=>{event.preventDefault();const body=Object.fromEntries(new FormData(form));const invalid=op.fields.find(field=>!new RegExp(field.pattern).test(String(body[field.id]??'')));
+   if(invalid){client.errorField=op.id+':'+invalid.id;client.message=invalid.error;render();$('field-'+op.id+'-'+invalid.id).focus();return;}send(op.id,body);
+  };
+ });
+ if($('retry-command'))$('retry-command').onclick=()=>send(client.pending.operation,client.pending.body,client.pending);
+ if($('resync'))$('resync').onclick=sync;
+ $('perspective').disabled=busy;$('response-mode').disabled=busy;
+ document.querySelectorAll('.review button').forEach(button=>button.disabled=busy);
+ document.querySelectorAll('[data-guide]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.guide===guide)));
+ const step=guide&&guides.find(item=>item.id===guide)?.steps[guideIndex];$('guide-description').textContent=step?.description??(guide?'導覽完成，可繼續自由操作。':'可自由操作，或選擇導覽建立情境起點。');$('guide-next').classList.toggle('hidden',!step);
+}
+// 按實案重複情境及步驟；seed 只建假資料。特殊拒絕、角色及斷線情境可依同格式擴充。
+const guides=[{id:'{{GUIDE_ID}}',label:'{{GUIDE_LABEL}}',seed:()=>{},steps:[{
+ description:'{{GUIDE_STEP_DESCRIPTION}}',run:()=>send('{{OPERATION_ID}}',{'{{FIELD_ID}}':'{{VALID_FIELD_SAMPLE}}'})
+}]}];
+$('perspective').innerHTML=actors.map(item=>`<option value="${esc(item.id)}">${esc(item.label)}</option>`).join('');
+$('perspective').onchange=event=>{actor=event.target.value;accept(actor,project(server,actor));render();};
+$('response-mode').onchange=event=>responseMode=event.target.value;
+$('demo-reset').onclick=reset;
+$('demo-disconnect').onclick=()=>{const client=currentClient();client.online=false;client.stale=true;client.message='連線中斷，保留畫面與輸入；同步前暫停提交。';render();};
+$('demo-read-fail').onclick=()=>{const client=currentClient();client.stale=true;client.message='讀取失敗，請稍後重新同步。';render();};
+$('demo-old').onclick=()=>{const snapshot=currentClient().snapshot;if(snapshot&&BigInt(snapshot.version)>0n){const old=structuredClone(snapshot);old.version=String(BigInt(old.version)-1n);accept(actor,old);}else $('review-status').textContent='先完成一次操作，再送來舊回覆。';render();};
+$('guide-list').innerHTML=guides.map(item=>`<button data-guide="${esc(item.id)}" aria-pressed="false">${esc(item.label)}</button>`).join('');
+$('guide-list').onclick=event=>{const selected=guides.find(item=>item.id===event.target.dataset.guide);if(!selected)return;reset();selected.seed();notify();guide=selected.id;guideIndex=0;render();};
+$('guide-next').onclick=async()=>{const step=guides.find(item=>item.id===guide)?.steps[guideIndex];if(step){await step.run();guideIndex++;render();}};
+reset();
+</script>
+</body>
+</html>
