@@ -15,7 +15,7 @@ description: 依需求、研究及既有成果整理精簡 plan.md，按責任�
 
 1. THINK 依已載入規則整理系統邊界、核心流程、共同約束、目標專案結構及本輪可交付內容。
 2. THINK 安排工作時，讀取 `rules/endpoint-interface-wave-planning.md` 與 `rules/planner-dispatch-and-execution.md`，收斂各主責的整合任務、必要輸入、依賴及可沿用結果。
-3. READ 寫入計畫前讀取 `templates/plan.md` 與 `templates/plan.example.md`，對照本案來源選擇適用區塊。
+3. READ 寫入計畫前，依已載入共同契約選擇建立或更新方式；需要骨架時讀取 `templates/plan.md`，觸發範例對照時讀取 `templates/plan.example.md` 的適用範圍，確認本案應保留的內容與深度。
 4. WRITE 保存精簡 `plan.md`，以一份索引記錄主責、實際產物、必要依賴與未決影響；本次只要求規劃時，在核對輪廓與交付邊界後回報並停止。
 
 ## Phase 3 -- 委派領域分析並承接成果

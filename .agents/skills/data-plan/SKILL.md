@@ -18,7 +18,7 @@ description: 整合本輪資料責任、模型、讀寫、交易、授權與生�
 ## Phase 3 -- 保存整合 DBML
 
 1. THINK 安排結構與 Notes 時，先讀取 `rules/dbml-artifacts.md`，再決定本輪擁有的模型、引用占位與最相關的說明位置，讓共用結論只維護一處。
-2. WRITE 產出或更新 DBML 前，讀取 `templates/schema.dbml` 與 `templates/schema.example.dbml`；依骨架的可重複語法區塊、參考完整範例改寫本輪模型與必要 Notes。來源及未決引用 Plan 的局部影響；無 Plan 時保存在相關 Notes，更新時沿用有效內容。
+2. WRITE 產出或更新 DBML 時，依已載入共同契約選擇建立或更新方式；需要骨架時讀取 `templates/schema.dbml`，觸發範例對照時讀取 `templates/schema.example.dbml` 的適用範圍，保存本輪模型與必要 Notes。來源及未決引用 Plan 的局部影響；無 Plan 時保存在相關 Notes，更新時沿用有效內容。
 
 ## Phase 4 -- 檢查模型並交回
 

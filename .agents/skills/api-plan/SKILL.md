@@ -18,6 +18,6 @@ description: 整合服務操作、身分、事件與恢復契約，以 OpenAPI Y
 
 ## Phase 3 -- 保存並驗收 OpenAPI
 
-1. WRITE 產出或更新整合契約時，先讀取 `rules/openapi-contract.md`、`templates/openapi.yaml` 與 `templates/openapi.example.yaml`；複製骨架、對照範例並依本輪分析改寫適用區塊，保存至指定的 OpenAPI YAML。
+1. WRITE 產出或更新整合契約時，先讀取 `rules/openapi-contract.md`，依已載入共同契約選擇建立或更新方式；需要骨架時讀取 `templates/openapi.yaml`，觸發範例對照時讀取 `templates/openapi.example.yaml` 的適用範圍，將本輪分析保存至指定的 OpenAPI YAML。
 2. READ 依已載入判準檢查格式、引用、範例、擴充契約及跨產物語意，修正本檔缺漏；記錄實際執行與未執行檢查、未決影響及可用範圍。
 3. WRITE 回傳產物位置、可用結論、檢查結果與必要依賴；由呼叫者更新 Plan，服務分析完成與實際整合／部署結果分別陳述。

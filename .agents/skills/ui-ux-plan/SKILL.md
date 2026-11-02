@@ -17,8 +17,8 @@ description: 依需求與已確認契約製作可直接開啟的單檔 HTML 互�
 
 ## Phase 3 -- 製作 HTML 與簡短紀錄
 
-1. WRITE 建立或更新原型時，讀取 `templates/prototype.html` 與 `templates/prototype.example.html`，依骨架保留單檔結構、參考範例改寫本案操作與狀態，以記憶體假資料完成主要流程及適用的拒絕／未知結果／恢復；正常產品控制與示範控制分開，不照抄範例角色、數值或視覺版型。
-2. WRITE 撰寫 UI／UX 紀錄時，若尚未載入 `rules/ui-ux-interface-analysis.md` 則先補讀，再讀取 `templates/ui-ux-plan.md` 與 `templates/ui-ux-plan.example.md`，依已載入規則與骨架整理原型入口、操作方式、畫面意圖、UI 實作注意事項及限制。
+1. WRITE 建立或更新原型時，依已載入共同契約選擇建立或更新方式；需要骨架時讀取 `templates/prototype.html`，觸發範例對照時讀取 `templates/prototype.example.html` 的適用範圍，以記憶體假資料製作單檔 HTML，完成主要流程及適用的拒絕／未知結果／恢復；正常產品控制與示範控制分開，不照抄範例角色、數值或視覺版型。
+2. WRITE 撰寫 UI／UX 紀錄時，若尚未載入 `rules/ui-ux-interface-analysis.md` 則先補讀，再依已載入共同契約選擇建立或更新方式；需要骨架時讀取 `templates/ui-ux-plan.md`，觸發範例對照時讀取 `templates/ui-ux-plan.example.md` 的適用範圍，整理原型入口、操作方式、畫面意圖、UI 實作注意事項及限制。
 
 ## Phase 4 -- 實際檢查並交接
 
