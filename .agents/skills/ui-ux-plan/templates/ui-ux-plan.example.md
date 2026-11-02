@@ -30,12 +30,12 @@
 | 舊回覆／通知 | 同房 stateVersion 用 BigInt 比較，不倒退；通知只觸發讀取，不能新增猜測或裁決勝負。 |
 | session／讀取拒絕 | 正式實作須處理 401 session 恢復、opaque 404 清除 locator、429／503 退避；prototype 僅示範斷線與一般讀取失敗，未模擬完整 Auth／限流。 |
 
-## 開發者交接
+## UI 實作注意事項
 
-- [HTTP](../../api-plan/templates/openapi.example.yaml)：四個 POST 與 `GET /get-room-snapshot?roomId=...` 共用 `RoomSnapshot`。讀取 `isCallerHost`、`readiness.callerReady/opponentReady`、`callerResult`、`callerGuesses`；`requestId` 是每次診斷碼，`commandId` 才是重送識別。
-- [Realtime 契約](../../api-plan/templates/openapi.example.yaml) 的 `x-realtime`：private join 與重連後 GET；新通知合併讀取，較低於通知版本的回覆仍 stale。原型以記憶體快照模擬這段結果，不包含真實 WebSocket／重試排程。
-- [Data](../../data-plan/templates/schema.example.dbml)：所有權限與投影由服務強制；隱藏按鈕不是授權。正式前端不讀取對手答案；原型的假服務為了可離線示範才在同一檔持有兩方假資料，不構成安全驗證。
-- 匿名 session 未就緒前不可讀寫；保留 server-issued roomId 以恢復指定房間，不假設一 UID 只有一個房間。刷新後持久化與未知命令恢復策略須在正式實作完成。
+- 開始按鈕依服務回傳的房主身分與雙方準備狀態決定顯示及啟用；勝負與猜測紀錄也以服務結果呈現。欄位對照見 [API 契約](../../api-plan/templates/openapi.example.yaml) 的 `RoomSnapshot`。
+- 畫面收到更新通知或恢復連線後，須取得有效的最新狀態再恢復操作，不以通知直接新增猜測或判定勝負；玩家可見回饋依上方「非同步與恢復」，同步規則見 [Realtime 契約](../../api-plan/templates/openapi.example.yaml) 的 `x-realtime`。原型僅以假資料示範這些狀態。
+- 玩家介面只呈現本人可見的資訊，不讀取或顯示對手答案；隱藏按鈕僅控制畫面呈現，權限仍由服務強制。資訊可見範圍見 [資料模型](../../data-plan/templates/schema.example.dbml)；原型同檔持有雙方假資料僅供離線示範。
+- 匿名 session 未就緒時不可開放讀寫操作；重新整理後須能恢復原房間，並延續未確認操作的處理，避免誤導玩家重複送出。恢復行為見 [API 契約](../../api-plan/templates/openapi.example.yaml)，原型尚未驗證正式刷新恢復。
 - 版面以桌面雙欄、窄畫面直向排列；文字與色彩共同提示狀態。表單 label／描述、鍵盤操作、可見焦點、live status 與至少 44px 控制尺寸須保留；實際讀屏與雙瀏覽器驗證留待實作。
 
 未決集中於 [plan.md](../../system-analysis/templates/plan.example.md)：U1 不採用錯誤算例；U2 不新增 TTL／離開／自動轉移；U5/U6 目前不揭露答案與對手猜測。waiting 答案修訂尚未確認，原型只提供首次提交；示範工具的固定答案是 A=`1234`、B=`5678`，不代表產品預設值。既有視覺稿可作來源；本例只以 HTML 承載可操作原型，不另交畫布檔或固定預覽圖。
