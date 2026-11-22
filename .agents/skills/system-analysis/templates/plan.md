@@ -46,6 +46,7 @@ flowchart TB
 {{IMPLEMENTATION_ORDER_AND_STRUCTURE_READINESS}}
 
 ## 分析分工與產物索引
+<!-- 有適用憲法時，在對應產物列或既有驗證段落記錄規則版本、結果、證據入口與待承接條件。 -->
 
 <!-- 依適用性保留列；同責任的界面整合交付。事件／session 放進 OpenAPI 擴充區，無 HTTP 操作時保留 paths: {}。 -->
 | 分析工作 | 主責與分析重點 | 現行交付 |

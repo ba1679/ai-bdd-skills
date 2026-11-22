@@ -9,10 +9,11 @@ description: 整合本輪資料責任、模型、讀寫、交易、授權與生�
 
 1. READ 讀取 `../system-analysis/references/interface-analysis-contract.md`、本次需求及實際可用的規格、研究、既有資料與相鄰產物，辨認已確認決策、設計推導及缺口。
 2. THINK 收斂本輪整合的資料責任、必要輸入與唯一 DBML 路徑；預設 `analysis/data-model.dbml`，獨立呼叫不要求 Plan。缺少必要業務或權限決策時回報局部影響，繼續不受影響的部分。
+3. READ 讀取目標 repo 的 `constitution/README.md`，再依[憲法套用約定](../constitution/SKILL.md#憲法套用約定)載入適用的 `constitution/shared/rules.md` 和 DBML 的 `constitution/data-plan/rules.md`。若涉及欄位命名或 Notes 呈現覆寫，先讀 `rules/dbml-artifacts.md` 的可覆寫項目。
 
 ## Phase 2 -- 形成可交接的資料設計
 
-1. THINK 分析模型與存取時，先讀取 `rules/data-interface-design.md`，再釐清資料權威、識別與關聯、值域、讀寫及狀態規則、交易競態、重試、授權與本輪必要生命週期約束。
+1. THINK 分析模型與存取時，先讀取 `rules/data-interface-design.md`，再釐清資料權威、識別與關聯、值域、讀寫及狀態規則、交易競態、重試、授權與本輪必要生命週期約束。依適用憲法收斂資料結構與關聯。
 2. THINK 比對已有服務與 UI 契約，收斂資料投影、可信輸入及下游可用結果；需要新決策時標明責任與影響，將相鄰領域的 wire、session 與互動設計交回其主責。
 
 ## Phase 3 -- 保存整合 DBML
@@ -22,8 +23,8 @@ description: 整合本輪資料責任、模型、讀寫、交易、授權與生�
 
 ## Phase 4 -- 檢查模型並交回
 
-1. READ 依已載入規則檢查 DBML 語法、鍵與參照、結構和 Notes、來源與服務投影是否一致；修正缺漏並記錄實際檢查，將未執行的資料庫驗證與文件檢查分開。
-2. WRITE 回報 DBML 路徑、可用模型與規則、檢查結果、未決影響及新依賴，供呼叫者驗收；必要結論未就緒時保留待補或待修正，不複製範例的完成紀錄。
+1. READ 依已載入規則檢查 DBML 語法、鍵與參照、結構和 Notes、來源與服務投影是否一致；修正缺漏並記錄實際檢查，將未執行的資料庫驗證與文件檢查分開。依憲法核對本輪相關表、欄位、鍵、參照與 Notes。
+2. WRITE 回報 DBML 路徑、可用模型與規則、檢查結果、未決影響及新依賴，供呼叫者驗收；必要結論未就緒時保留待補或待修正，不複製範例的完成紀錄。附上適用規則版本、模型定位、檢查結果與仍須下游驗證的資料庫條件。
 
 ## 工作邊界
 

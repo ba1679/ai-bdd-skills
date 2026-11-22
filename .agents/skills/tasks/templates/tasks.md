@@ -9,6 +9,7 @@
 **定位方式**：Markdown 使用章節與需求／驗收編號；OpenAPI 使用 method＋path、operationId、schema／response 名稱；DBML 使用表、欄位、index／Notes。來源已有固定行號時可加行號輔助定位，但仍保留語意定位。各故事的責任與落點依 {{RESPONSIBILITY_AND_PATH_SOURCE}} 分組。
 
 ## 專案輸入索引
+<!-- 有適用憲法時，在此記錄採用的規則版本，並於對應任務的必讀與完成條件引用規則 ID、契約定位與所需證據。 -->
 
 以下列出本輪實際採用的輸入；此索引只供尋找來源，每項任務另指定要讀取的最小相關範圍。
 

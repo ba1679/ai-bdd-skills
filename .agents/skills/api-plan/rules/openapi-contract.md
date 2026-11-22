@@ -39,6 +39,7 @@ paths:
 
 - Level: `MUST`
 - 同責任的 operations、session 及事件使用一致的識別、狀態與診斷命名；共用的 wire schemas、security、parameters、headers、responses 以 components 定義並引用。`requestId` 之類診斷識別與冪等操作識別明確分開，body 與 header 的對應關係須可理解。
+- 公開可覆寫項目 `openapi-response-format` 涵蓋回應外層與共用 schema 策略，`openapi-field-naming` 涵蓋 wire 欄位命名。覆寫後保留可解析的 schema 引用，並讓 operation、共用定義與實際範例一致。
 - 每個操作有唯一 operationId、實際 method/path、成功與適用錯誤，path 槽位與 required path parameters 對應；明確 body 必要性、參數序列化、媒體型別與回應標頭。查詢、公開或無 body 能力不因模板而新增命令、登入或冪等鍵。
 - 共用 middleware／執行邊界可能拒絕的請求，也須對應到每個受影響 operation 的 response；例如 Host、Origin、驗證或限流，不只寫在全域擴充區。只列真實適用的拒絕，不為消除 lint 警告虛構錯誤。
 - Schema 區分 required、可省略、可空、值域、精度及額外欄位策略；OpenAPI 3.1 採 JSON Schema 空值表達，組合模型的閉合策略不得誤拒合法分支。機器可驗證限制寫進 schema，跨欄位／業務限制寫在相應 description 並保留檢查期待。
